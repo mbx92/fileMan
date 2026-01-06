@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  username    String   @unique
+  password    String?  // Nullable for SSO users
+  name        String?
+  avatar      String?
+  role        Role     @default(USER)
+  ssoProvider String?  // For SSO integration
+  ssoId       String?  // External SSO ID
+  
+  files       File[]
+  folders     Folder[]
+  shares      Share[]  @relation("SharedBy")
+  sharedWith  Share[]  @relation("SharedWith")
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([email])
+  @@index([ssoId])
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+model Folder {
+  id        String   @id @default(cuid())
+  name      String
+  parentId  String?
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children  Folder[] @relation("FolderTree")
+  
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  
+  files     File[]
+  shares    Share[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([parentId])
+  @@index([ownerId])
+}
+
+model File {
+  id           String   @id @default(cuid())
+  name         String
+  originalName String
+  mimeType     String
+  size         Int
+  minioKey     String   @unique // MinIO object key
+  
+  folderId     String?
+  folder       Folder?  @relation(fields: [folderId], references: [id])
+  
+  ownerId      String
+  owner        User     @relation(fields: [ownerId], references: [id])
+  
+  shares       Share[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([folderId])
+  @@index([ownerId])
+}
+
+model Share {
+  id          String      @id @default(cuid())
+  permission  Permission  @default(VIEW)
+  expiresAt   DateTime?
+  
+  fileId      String?
+  file        File?       @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  
+  folderId    String?
+  folder      Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  
+  sharedById  String
+  sharedBy    User        @relation("SharedBy", fields: [sharedById], references: [id])
+  
+  sharedWithId String?
+  sharedWith   User?      @relation("SharedWith", fields: [sharedWithId], references: [id])
+  
+  // Public share link
+  publicToken  String?    @unique
+  
+  createdAt   DateTime    @default(now())
+  
+  @@index([fileId])
+  @@index([folderId])
+  @@index([sharedWithId])
+  @@index([publicToken])
+}
+
+enum Permission {
+  VIEW
+  DOWNLOAD
+  EDIT
+}

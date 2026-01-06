@@ -22,16 +22,43 @@ export default defineNuxtConfig({
   css: ['~/assets/css/main.css'],
 
   colorMode: {
-    preference: 'dark',
-    fallback: 'dark',
+    preference: 'light',
+    fallback: 'light',
     classSuffix: '',
+  },
+
+  runtimeConfig: {
+    // Server-only config
+    jwtSecret: process.env.JWT_SECRET || 'default-secret-change-me',
+    jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    databaseUrl: process.env.DATABASE_URL,
+    sso: {
+      clientSecret: process.env.SSO_CLIENT_SECRET,
+    },
+    minio: {
+      endpoint: process.env.MINIO_ENDPOINT || 'localhost:9000',
+      accessKey: process.env.MINIO_ACCESS_KEY || '',
+      secretKey: process.env.MINIO_SECRET_KEY || '',
+      bucketName: process.env.MINIO_BUCKET_NAME || 'fileman',
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+    },
+    // Public config (available client-side)
+    public: {
+      appName: 'FileMan',
+      sso: {
+        baseUrl: process.env.SSO_BASE_URL || '',
+        clientId: process.env.SSO_CLIENT_ID || '',
+        redirectUri: process.env.SSO_REDIRECT_URI || 'http://localhost:3003/auth/callback',
+        scopes: ['openid', 'profile', 'email'],
+      },
+    }
   },
 
   app: {
     head: {
-      title: 'NuxtBase - Premium Starter Kit',
+      title: 'FileMan - Internal File Sharing',
       meta: [
-        { name: 'description', content: 'A premium Nuxt UI starter kit with comprehensive component documentation' },
+        { name: 'description', content: 'Secure internal file sharing for your organization' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
       ],
       link: [
@@ -42,7 +69,7 @@ export default defineNuxtConfig({
   },
 
   typescript: {
-    strict: false,
+    strict: true,
     typeCheck: false,
   },
 })

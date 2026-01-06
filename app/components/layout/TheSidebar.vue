@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
+
 interface Props {
   collapsed?: boolean
 }
@@ -13,6 +15,14 @@ const emit = defineEmits<{
 
 const appConfig = useAppConfig()
 const route = useRoute()
+const authStore = useAuthStore()
+
+// Role color mapping
+const roleColors = {
+  SUPERADMIN: 'error' as const,
+  ADMIN: 'warning' as const,
+  USER: 'primary' as const,
+}
 
 interface NavItem {
   label: string
@@ -26,85 +36,27 @@ const defaultNavigation: NavItem[] = [
   {
     label: 'Dashboard',
     icon: 'i-heroicons-home',
-    to: '/'
+    to: '/dashboard'
   },
   {
-    label: 'Components',
-    icon: 'i-heroicons-cube',
-    to: '/components',
-    children: [
-      {
-        label: 'Elements',
-        icon: 'i-heroicons-squares-2x2',
-        children: [
-          { label: 'Button', to: '/components/elements/button' },
-          { label: 'Badge', to: '/components/elements/badge' },
-          { label: 'Avatar', to: '/components/elements/avatar' },
-          { label: 'Icon', to: '/components/elements/icon' },
-          { label: 'Chip', to: '/components/elements/chip' },
-          { label: 'Kbd', to: '/components/elements/kbd' }
-        ]
-      },
-      {
-        label: 'Forms',
-        icon: 'i-heroicons-pencil-square',
-        children: [
-          { label: 'Input', to: '/components/forms/input' },
-          { label: 'Textarea', to: '/components/forms/textarea' },
-          { label: 'Select', to: '/components/forms/select' },
-          { label: 'Checkbox', to: '/components/forms/checkbox' },
-          { label: 'Radio', to: '/components/forms/radio' },
-          { label: 'Toggle', to: '/components/forms/toggle' }
-        ]
-      },
-      {
-        label: 'Data',
-        icon: 'i-heroicons-table-cells',
-        children: [
-          { label: 'Table', to: '/components/data/table' },
-          { label: 'Card', to: '/components/data/card' },
-          { label: 'Skeleton', to: '/components/data/skeleton' }
-        ]
-      },
-      {
-        label: 'Navigation',
-        icon: 'i-heroicons-bars-3',
-        children: [
-          { label: 'Tabs', to: '/components/navigation/tabs' },
-          { label: 'Breadcrumb', to: '/components/navigation/breadcrumb' },
-          { label: 'Pagination', to: '/components/navigation/pagination' },
-          { label: 'NavigationMenu', to: '/components/navigation/navigation-menu' }
-        ]
-      },
-      {
-        label: 'Overlays',
-        icon: 'i-heroicons-window',
-        children: [
-          { label: 'Modal', to: '/components/overlays/modal' },
-          { label: 'Drawer', to: '/components/overlays/drawer' },
-          { label: 'Popover', to: '/components/overlays/popover' },
-          { label: 'Tooltip', to: '/components/overlays/tooltip' }
-        ]
-      },
-      {
-        label: 'Feedback',
-        icon: 'i-heroicons-bell',
-        children: [
-          { label: 'Alert', to: '/components/feedback/alert' },
-          { label: 'Toast', to: '/components/feedback/toast' },
-          { label: 'Progress', to: '/components/feedback/progress' }
-        ]
-      }
-    ]
+    label: 'Files',
+    icon: 'i-heroicons-folder',
+    to: '/dashboard/files'
   },
   {
-    label: 'Examples',
-    icon: 'i-heroicons-document-duplicate',
-    children: [
-      { label: 'Dashboard', to: '/examples/dashboard', icon: 'i-heroicons-chart-bar' },
-      { label: 'Settings', to: '/examples/settings', icon: 'i-heroicons-cog-6-tooth' },
-      { label: 'Profile', to: '/examples/profile', icon: 'i-heroicons-user' }
-    ]
+    label: 'Shared',
+    icon: 'i-heroicons-share',
+    to: '/dashboard/shared'
+  },
+  {
+    label: 'Users',
+    icon: 'i-heroicons-users',
+    to: '/dashboard/users'
+  },
+  {
+    label: 'Settings',
+    icon: 'i-heroicons-cog-6-tooth',
+    to: '/dashboard/settings'
   }
 ]
 
@@ -126,6 +78,11 @@ const isExpanded = (label: string) => expandedItems.value.has(label)
 
 const isActive = (to: string | undefined) => {
   if (!to) return false
+  // Exact match for dashboard root to prevent it being active for children
+  if (to === '/dashboard') {
+    return route.path === to
+  }
+  // For other routes, allow prefix matching
   return route.path === to || route.path.startsWith(to + '/')
 }
 
@@ -159,7 +116,7 @@ onMounted(() => {
     <!-- Logo -->
     <div class="h-16 flex items-center px-4 border-b border-gray-200 dark:border-gray-800" :class="collapsed ? 'justify-center' : ''">
       <NuxtLink to="/" class="flex items-center gap-3 overflow-hidden">
-        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
+        <div class="w-8 h-8 rounded-lg bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center shrink-0">
           <UIcon name="i-heroicons-cube" class="w-5 h-5 text-white" />
         </div>
         <Transition name="slide-fade">
@@ -269,18 +226,34 @@ onMounted(() => {
       </ul>
     </nav>
 
-    <!-- Bottom section -->
-    <div class="border-t border-gray-200 dark:border-gray-800 p-3 shrink-0">
-      <div class="flex items-center gap-3 px-3 py-2 overflow-hidden">
+    <!-- Bottom section - User info aligned with footer -->
+    <div class="border-t border-gray-200 dark:border-gray-800 shrink-0">
+      <div class="flex items-center gap-3 px-6 py-2 overflow-hidden">
         <UAvatar
+          :src="authStore.user?.avatarUrl"
+          :alt="authStore.user?.name || 'User'"
           icon="i-heroicons-user"
           size="sm"
           class="shrink-0 bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200"
         />
         <Transition name="slide-fade">
           <div v-if="!collapsed" class="flex-1 min-w-0 overflow-hidden">
-            <p class="text-sm font-medium text-gray-900 dark:text-white truncate">John Doe</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">john@example.com</p>
+            <div class="flex items-center gap-2">
+              <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {{ authStore.user?.name || 'User' }}
+              </p>
+              <UBadge 
+                v-if="authStore.user?.role" 
+                :color="roleColors[authStore.user.role] || 'primary'" 
+                size="xs"
+                variant="subtle"
+              >
+                {{ authStore.user.role }}
+              </UBadge>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {{ authStore.user?.email || 'No email' }}
+            </p>
           </div>
         </Transition>
       </div>

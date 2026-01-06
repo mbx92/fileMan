@@ -24,18 +24,17 @@ const notifications = ref([
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
+const authStore = useAuthStore()
+const { logout } = useAuth()
+
 // User dropdown items
 const userItems = [
   [
-    { label: 'Profile', icon: 'i-heroicons-user', to: '/examples/profile' },
-    { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/examples/settings' }
+    { label: 'Settings', icon: 'i-heroicons-cog-6-tooth', to: '/dashboard/settings' },
+    { label: 'Users', icon: 'i-heroicons-users', to: '/dashboard/users' }
   ],
   [
-    { label: 'Documentation', icon: 'i-heroicons-book-open', to: '/components' },
-    { label: 'Changelog', icon: 'i-heroicons-document-text' }
-  ],
-  [
-    { label: 'Sign out', icon: 'i-heroicons-arrow-right-on-rectangle', click: () => console.log('Sign out') }
+    { label: 'Sign out', icon: 'i-heroicons-arrow-right-on-rectangle', click: async () => await logout() }
   ]
 ]
 
@@ -137,7 +136,7 @@ onMounted(() => {
                 :class="{ 'bg-primary-50/50 dark:bg-primary-950/20': !notification.read }"
               >
                 <div class="flex gap-3">
-                  <div class="flex-shrink-0">
+                  <div class="shrink-0">
                     <div
                       class="w-8 h-8 rounded-full flex items-center justify-center"
                       :class="notification.read ? 'bg-gray-100 dark:bg-gray-700' : 'bg-primary-100 dark:bg-primary-900'"
@@ -177,11 +176,13 @@ onMounted(() => {
       <UDropdownMenu :items="userItems">
         <UButton variant="ghost" color="neutral" class="gap-2" trailing-icon="i-heroicons-chevron-down">
           <UAvatar
+            :src="authStore.user?.avatarUrl"
+            :alt="authStore.user?.name || 'User'"
             icon="i-heroicons-user"
             size="xs"
             class="bg-primary-100 dark:bg-primary-900 text-primary-700 dark:text-primary-200"
           />
-          <span class="hidden lg:inline text-sm">John Doe</span>
+          <span class="hidden lg:inline text-sm">{{ authStore.user?.name || 'User' }}</span>
         </UButton>
       </UDropdownMenu>
     </div>
