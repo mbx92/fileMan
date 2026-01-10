@@ -1,0 +1,613 @@
+<script setup lang="ts">
+const config = useRuntimeConfig()
+const toast = useToast()
+
+// Tabs
+const selectedTab = ref('integrations')
+
+const tabs = [
+  { key: 'integrations', label: 'Integrations', icon: 'i-heroicons-puzzle-piece' },
+  { key: 'roles', label: 'SSO Roles', icon: 'i-heroicons-user-group' },
+  { key: 'general', label: 'General', icon: 'i-heroicons-cog-6-tooth' },
+  { key: 'security', label: 'Security', icon: 'i-heroicons-shield-check' },
+]
+
+// Role mapping info
+const roleMappings = [
+  { ssoRole: 'superadmin, super_admin', fileManRole: 'SUPERADMIN', color: 'error' as const, description: 'Full system access' },
+  { ssoRole: 'admin, administrator', fileManRole: 'ADMIN', color: 'warning' as const, description: 'Administrative access' },
+  { ssoRole: 'user, default', fileManRole: 'USER', color: 'primary' as const, description: 'Standard user access' },
+]
+
+// SSO Configuration (from runtime config)
+const ssoConfig = ref({
+  baseUrl: config.public.sso.baseUrl,
+  clientId: config.public.sso.clientId,
+  redirectUri: config.public.sso.redirectUri,
+  scopes: config.public.sso.scopes.join(', '),
+})
+
+// MinIO Configuration (from runtime config)
+const minioConfig = ref({
+  endpoint: '',
+  bucketName: '',
+  useSSL: false,
+})
+
+// Test states
+const ssoTestLoading = ref(false)
+const ssoTestResult = ref<any>(null)
+const userInfoTestLoading = ref(false)
+const userInfoTestResult = ref<any>(null)
+const minioTestLoading = ref(false)
+const minioTestResult = ref<any>(null)
+
+const authStore = useAuthStore()
+
+// Get MinIO config from server
+const { data: minioData } = await useFetch('/api/settings/minio')
+if (minioData.value) {
+  minioConfig.value = {
+    endpoint: minioData.value.endpoint,
+    bucketName: minioData.value.bucketName,
+    useSSL: minioData.value.useSSL,
+  }
+}
+
+// Test SSO Connection
+async function testSSOConnection() {
+  ssoTestLoading.value = true
+  ssoTestResult.value = null
+  
+  try {
+    const response = await $fetch('/api/settings/test-sso', {
+      method: 'POST',
+    })
+    
+    ssoTestResult.value = {
+      success: true,
+      message: 'SSO server is reachable',
+      data: response,
+    }
+    
+    toast.add({
+      title: 'Success',
+      description: 'SSO connection successful',
+      color: 'success',
+    })
+  } catch (error: any) {
+    ssoTestResult.value = {
+      success: false,
+      message: error.data?.message || error.message || 'Connection failed',
+      error: error,
+    }
+    
+    toast.add({
+      title: 'Error',
+      description: 'SSO connection failed',
+      color: 'error',
+    })
+  } finally {
+    ssoTestLoading.value = false
+  }
+}
+
+// Test SSO UserInfo with current token
+async function testUserInfo() {
+  userInfoTestLoading.value = true
+  userInfoTestResult.value = null
+  
+  const accessToken = authStore.tokens?.accessToken
+  
+  if (!accessToken) {
+    toast.add({
+      title: 'Error',
+      description: 'No access token found. Please login first.',
+      color: 'error',
+    })
+    userInfoTestLoading.value = false
+    return
+  }
+  
+  try {
+    const response = await $fetch('/api/settings/test-userinfo', {
+      method: 'POST',
+      body: { accessToken },
+    })
+    
+    userInfoTestResult.value = {
+      success: true,
+      message: 'UserInfo fetched successfully',
+      data: response,
+    }
+    
+    toast.add({
+      title: 'Success',
+      description: `UserInfo fetched. Role field: ${response.roleFields.hasRole ? '✓ Found' : '✗ Not found'}`,
+      color: response.roleFields.hasRole ? 'success' : 'warning',
+    })
+  } catch (error: any) {
+    userInfoTestResult.value = {
+      success: false,
+      message: error.data?.message || error.message || 'Failed to fetch userinfo',
+      error: error,
+    }
+    
+    toast.add({
+      title: 'Error',
+      description: 'Failed to fetch userinfo from SSO',
+      color: 'error',
+    })
+  } finally {
+    userInfoTestLoading.value = false
+  }
+}
+
+// Test MinIO Connection
+async function testMinIOConnection() {
+  minioTestLoading.value = true
+  minioTestResult.value = null
+  
+  try {
+    const response = await $fetch('/api/settings/test-minio', {
+      method: 'POST',
+    })
+    
+    minioTestResult.value = {
+      success: true,
+      message: 'MinIO connection successful',
+      data: response,
+    }
+    
+    toast.add({
+      title: 'Success',
+      description: 'MinIO connection successful',
+      color: 'success',
+    })
+  } catch (error: any) {
+    minioTestResult.value = {
+      success: false,
+      message: error.data?.message || error.message || 'Connection failed',
+      error: error,
+    }
+    
+    toast.add({
+      title: 'Error',
+      description: 'MinIO connection failed',
+      color: 'error',
+    })
+  } finally {
+    minioTestLoading.value = false
+  }
+}
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text)
+  toast.add({
+    title: 'Copied',
+    description: 'Copied to clipboard',
+    color: 'success',
+  })
+}
+</script>
+
+<template>
+  <div class="p-6 h-full overflow-auto">
+    <div class="max-w-5xl mx-auto space-y-6">
+      <!-- Header -->
+      <div>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+        <p class="text-gray-500 dark:text-gray-400 mt-1">Manage application settings and integrations</p>
+      </div>
+
+      <!-- Tabs -->
+      <div class="mt-6">
+        <UTabs v-model="selectedTab" :items="tabs" class="w-full" />
+        
+        <div v-if="selectedTab === 'integrations'" class="space-y-6 pt-6">
+          <!-- SSO Integration -->
+          <UCard>
+              <template #header>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <UIcon name="i-heroicons-shield-check" class="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <h3 class="font-semibold text-lg">SSO Integration</h3>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">OpenID Connect configuration</p>
+                    </div>
+                  </div>
+                  <UBadge color="success" variant="subtle">
+                    <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                    Active
+                  </UBadge>
+                </div>
+              </template>
+
+              <div class="space-y-4">
+                <!-- SSO Base URL -->
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    SSO Server URL
+                  </label>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="ssoConfig.baseUrl"
+                      readonly
+                      class="flex-1"
+                      icon="i-heroicons-link"
+                    />
+                    <UButton
+                      icon="i-heroicons-clipboard-document"
+                      color="neutral"
+                      variant="outline"
+                      @click="copyToClipboard(ssoConfig.baseUrl)"
+                    />
+                  </div>
+                </div>
+
+                <!-- Client ID -->
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Client ID
+                  </label>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="ssoConfig.clientId"
+                      readonly
+                      class="flex-1"
+                      icon="i-heroicons-key"
+                    />
+                    <UButton
+                      icon="i-heroicons-clipboard-document"
+                      color="neutral"
+                      variant="outline"
+                      @click="copyToClipboard(ssoConfig.clientId)"
+                    />
+                  </div>
+                </div>
+
+                <!-- Redirect URI -->
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Redirect URI
+                  </label>
+                  <div class="flex gap-2">
+                    <UInput
+                      v-model="ssoConfig.redirectUri"
+                      readonly
+                      class="flex-1"
+                      icon="i-heroicons-arrow-uturn-left"
+                    />
+                    <UButton
+                      icon="i-heroicons-clipboard-document"
+                      color="neutral"
+                      variant="outline"
+                      @click="copyToClipboard(ssoConfig.redirectUri)"
+                    />
+                  </div>
+                </div>
+
+                <!-- Scopes -->
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                    Scopes
+                  </label>
+                  <UInput
+                    v-model="ssoConfig.scopes"
+                    readonly
+                    icon="i-heroicons-list-bullet"
+                  />
+                </div>
+
+                <!-- Test Connection -->
+                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+                  <div class="flex gap-2">
+                    <UButton
+                      icon="i-heroicons-signal"
+                      :loading="ssoTestLoading"
+                      @click="testSSOConnection"
+                    >
+                      Test SSO Server
+                    </UButton>
+                    
+                    <UButton
+                      icon="i-heroicons-user-circle"
+                      color="primary"
+                      variant="outline"
+                      :loading="userInfoTestLoading"
+                      @click="testUserInfo"
+                    >
+                      Check My Role from SSO
+                    </UButton>
+                  </div>
+
+                  <!-- Test Result -->
+                  <div v-if="ssoTestResult" class="mt-4">
+                    <UAlert
+                      :color="ssoTestResult.success ? 'success' : 'error'"
+                      :icon="ssoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+                      :title="ssoTestResult.success ? 'Connection Successful' : 'Connection Failed'"
+                      :description="ssoTestResult.message"
+                    />
+                    
+                    <div v-if="ssoTestResult.data" class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400">
+                        {{ JSON.stringify(ssoTestResult.data, null, 2) }}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <!-- UserInfo Test Result -->
+                  <div v-if="userInfoTestResult" class="mt-4">
+                    <UAlert
+                      :color="userInfoTestResult.success ? 'success' : 'error'"
+                      :icon="userInfoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+                      :title="userInfoTestResult.success ? 'UserInfo Retrieved' : 'UserInfo Failed'"
+                    >
+                      <template #description>
+                        <div class="space-y-2">
+                          <p>{{ userInfoTestResult.message }}</p>
+                          <div v-if="userInfoTestResult.data?.roleFields" class="mt-3 p-3 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
+                            <p class="text-sm font-semibold mb-2">Role Fields Check:</p>
+                            <ul class="text-sm space-y-1">
+                              <li class="flex items-center gap-2">
+                                <UIcon 
+                                  :name="userInfoTestResult.data.roleFields.hasRole ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" 
+                                  :class="userInfoTestResult.data.roleFields.hasRole ? 'text-green-500' : 'text-red-500'"
+                                />
+                                <code class="text-xs">userInfo.role</code>
+                                <span v-if="userInfoTestResult.data.roleFields.hasRole" class="text-xs">
+                                  = <strong>{{ userInfoTestResult.data.roleFields.roleValue }}</strong>
+                                </span>
+                                <span v-else class="text-xs text-gray-500">(not found)</span>
+                              </li>
+                              <li class="flex items-center gap-2">
+                                <UIcon 
+                                  :name="userInfoTestResult.data.roleFields.hasRoleName ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" 
+                                  :class="userInfoTestResult.data.roleFields.hasRoleName ? 'text-green-500' : 'text-red-500'"
+                                />
+                                <code class="text-xs">userInfo.role_name</code>
+                                <span v-if="userInfoTestResult.data.roleFields.hasRoleName" class="text-xs">
+                                  = <strong>{{ userInfoTestResult.data.roleFields.roleNameValue }}</strong>
+                                </span>
+                                <span v-else class="text-xs text-gray-500">(not found)</span>
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </template>
+                    </UAlert>
+                    
+                    <div v-if="userInfoTestResult.data?.userInfo" class="mt-2">
+                      <details class="cursor-pointer">
+                        <summary class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Full UserInfo Response (click to expand)
+                        </summary>
+                        <div class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-auto max-h-96">
+                          <p class="text-xs font-mono text-gray-600 dark:text-gray-400 whitespace-pre">{{ JSON.stringify(userInfoTestResult.data.userInfo, null, 2) }}</p>
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </UCard>
+
+          <!-- MinIO Integration -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                    <UIcon name="i-heroicons-cloud" class="w-5 h-5 text-purple-500" />
+                  </div>
+                  <div>
+                    <h3 class="font-semibold text-lg">MinIO Storage</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Object storage configuration</p>
+                  </div>
+                </div>
+                <UBadge color="success" variant="subtle">
+                  <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
+                  Active
+                </UBadge>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <!-- Endpoint -->
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  Endpoint
+                </label>
+                <div class="flex gap-2">
+                  <UInput
+                    v-model="minioConfig.endpoint"
+                    readonly
+                    class="flex-1"
+                    icon="i-heroicons-server"
+                  />
+                  <UButton
+                    icon="i-heroicons-clipboard-document"
+                    color="neutral"
+                    variant="outline"
+                    @click="copyToClipboard(minioConfig.endpoint)"
+                  />
+                </div>
+              </div>
+
+              <!-- Bucket Name -->
+              <div>
+                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  Bucket Name
+                </label>
+                <UInput
+                  v-model="minioConfig.bucketName"
+                  readonly
+                  icon="i-heroicons-folder"
+                />
+              </div>
+
+              <!-- Use SSL -->
+              <div class="flex items-center gap-3">
+                <UCheckbox
+                  v-model="minioConfig.useSSL"
+                  disabled
+                  label="Use SSL/TLS"
+                />
+              </div>
+
+              <!-- Test Connection -->
+              <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <UButton
+                  icon="i-heroicons-signal"
+                  color="primary"
+                  :loading="minioTestLoading"
+                  @click="testMinIOConnection"
+                >
+                  Test MinIO Connection
+                </UButton>
+
+                <!-- Test Result -->
+                <div v-if="minioTestResult" class="mt-4">
+                  <UAlert
+                    :color="minioTestResult.success ? 'success' : 'error'"
+                    :icon="minioTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
+                    :title="minioTestResult.success ? 'Connection Successful' : 'Connection Failed'"
+                    :description="minioTestResult.message"
+                  />
+                  
+                  <div v-if="minioTestResult.data" class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                    <p class="text-xs font-mono text-gray-600 dark:text-gray-400">
+                      {{ JSON.stringify(minioTestResult.data, null, 2) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UCard>
+          </div>
+        </div>
+
+        <div v-else-if="selectedTab === 'roles'" class="space-y-6 pt-6">
+          <!-- Role Mapping Card -->
+          <UCard>
+              <template #header>
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <UIcon name="i-heroicons-user-group" class="w-5 h-5 text-blue-500" />
+                    </div>
+                    <div>
+                      <h3 class="font-semibold text-lg">SSO Role Mapping</h3>
+                      <p class="text-sm text-gray-500 dark:text-gray-400">How SSO roles are mapped to FileMan roles</p>
+                    </div>
+                  </div>
+                  <UBadge color="primary" variant="subtle">
+                    <UIcon name="i-heroicons-arrow-path" class="w-3 h-3 mr-1" />
+                    Auto Sync
+                  </UBadge>
+                </div>
+              </template>
+
+              <div class="space-y-6">
+                <!-- Info Alert -->
+                <UAlert
+                  color="primary"
+                  icon="i-heroicons-information-circle"
+                  title="Automatic Role Synchronization"
+                  description="When users login via SSO, their roles are automatically synced to the database. The mapping below shows how SSO roles are converted to FileMan roles."
+                />
+
+                <!-- Role Mapping Table -->
+                <div class="space-y-4">
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                    Role Mapping Rules
+                  </h4>
+                  
+                  <div class="space-y-3">
+                    <div
+                      v-for="mapping in roleMappings"
+                      :key="mapping.fileManRole"
+                      class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                    >
+                      <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1">
+                          <div class="flex items-center gap-3 mb-2">
+                            <UBadge :color="mapping.color" size="lg">
+                              {{ mapping.fileManRole }}
+                            </UBadge>
+                            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4 text-gray-400" />
+                            <code class="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-gray-700 dark:text-gray-300">
+                              {{ mapping.ssoRole }}
+                            </code>
+                          </div>
+                          <p class="text-sm text-gray-600 dark:text-gray-400">
+                            {{ mapping.description }}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SSO User Info Fields -->
+                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
+                    SSO UserInfo Fields Used
+                  </h4>
+                  
+                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">
+                        userInfo.role
+                      </p>
+                      <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Primary role field (recommended)
+                      </p>
+                    </div>
+                    
+                    <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">
+                        userInfo.role_name
+                      </p>
+                      <p class="text-sm text-gray-700 dark:text-gray-300">
+                        Fallback role field (alternative)
+                      </p>
+                    </div>
+                  </div>
+
+                  <UAlert
+                    color="warning"
+                    icon="i-heroicons-exclamation-triangle"
+                    title="Default Role"
+                    description="If no role is provided by SSO, users will be assigned the 'USER' role by default."
+                  />
+                </div>
+              </div>
+            </UCard>
+          </div>
+        </div>
+
+        <div v-else-if="selectedTab === 'general'" class="space-y-6 pt-6">
+          <UCard>
+            <template #header>
+              <h3 class="font-semibold text-lg">General Settings</h3>
+            </template>
+            <p class="text-gray-500">General settings coming soon...</p>
+          </UCard>
+        </div>
+
+        <div v-else-if="selectedTab === 'security'" class="space-y-6 pt-6">
+          <UCard>
+            <template #header>
+              <h3 class="font-semibold text-lg">Security Settings</h3>
+            </template>
+            <p class="text-gray-500">Security settings coming soon...</p>
+          </UCard>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ShareModal from './ShareModal.vue'
+import FilePreviewModal from './FilePreviewModal.vue'
 
 const props = withDefaults(defineProps<{
   files: any[]
@@ -24,6 +25,11 @@ const contextMenuPosition = ref({ x: 0, y: 0 })
 const showShareModal = ref(false)
 const itemToShare = ref<any>(null)
 
+// Preview modal state
+const showPreviewModal = ref(false)
+const previewFile = ref<any>(null)
+const previewDownloadUrl = ref<string>('')
+
 function formatSize(bytes: number) {
   if (bytes === 0) return '0 B'
   const k = 1024
@@ -44,11 +50,19 @@ function handleItemClick(item: any, type: 'file' | 'folder') {
   if (type === 'folder') {
     emit('navigate', item.id)
   } else {
-    // Preview file or download
-    // Preview file or download
-    window.open(`/api/files/download/${item.id}`, '_blank')
-
+    // Open preview modal
+    openPreview(item)
   }
+}
+
+function openPreview(file: any) {
+  previewFile.value = file
+  previewDownloadUrl.value = `/api/files/download/${file.id}`
+  showPreviewModal.value = true
+}
+
+function downloadFile(file: any) {
+  window.open(`/api/files/download/${file.id}`, '_blank')
 }
 
 function openShareModal(item: any, type: 'file' | 'folder') {
@@ -170,12 +184,12 @@ function getFileIcon(filename: string): { name: string, color?: string } {
               <UDropdownMenu
                 :items="[
                   [
-                    { label: 'Open', icon: 'i-heroicons-folder-open', click: () => handleItemClick(folder, 'folder') },
-                    { label: 'Share', icon: 'i-heroicons-share', click: () => openShareModal(folder, 'folder') },
+                    { label: 'Open', icon: 'i-heroicons-folder-open', onSelect: () => handleItemClick(folder, 'folder') },
+                    { label: 'Share', icon: 'i-heroicons-share', onSelect: () => openShareModal(folder, 'folder') },
                     { label: 'Rename', icon: 'i-heroicons-pencil-square' },
                   ],
                   [
-                    { label: 'Delete', icon: 'i-heroicons-trash', color: 'error', click: () => handleDelete(folder, 'folder') }
+                    { label: 'Delete', icon: 'i-heroicons-trash', color: 'error', onSelect: () => handleDelete(folder, 'folder') }
                   ]
                 ]"
               >
@@ -266,12 +280,13 @@ function getFileIcon(filename: string): { name: string, color?: string } {
               <UDropdownMenu
                 :items="[
                   [
-                    { label: 'Download', icon: 'i-heroicons-arrow-down-tray', click: () => handleItemClick(file, 'file') },
-                    { label: 'Share', icon: 'i-heroicons-share', click: () => openShareModal(file, 'file') },
+                    { label: 'Preview', icon: 'i-heroicons-eye', onSelect: () => openPreview(file) },
+                    { label: 'Download', icon: 'i-heroicons-arrow-down-tray', onSelect: () => downloadFile(file) },
+                    { label: 'Share', icon: 'i-heroicons-share', onSelect: () => openShareModal(file, 'file') },
                     { label: 'Rename', icon: 'i-heroicons-pencil-square' },
                   ],
                   [
-                    { label: 'Delete', icon: 'i-heroicons-trash', color: 'error', click: () => handleDelete(file, 'file') }
+                    { label: 'Delete', icon: 'i-heroicons-trash', color: 'error', onSelect: () => handleDelete(file, 'file') }
                   ]
                 ]"
               >
@@ -308,9 +323,18 @@ function getFileIcon(filename: string): { name: string, color?: string } {
               <UButton
                 color="neutral"
                 variant="ghost"
+                icon="i-heroicons-eye"
+                size="sm"
+                title="Preview"
+                @click.stop="openPreview(file)"
+              />
+              <UButton
+                color="neutral"
+                variant="ghost"
                 icon="i-heroicons-arrow-down-tray"
                 size="sm"
-                @click.stop="handleItemClick(file, 'file')"
+                title="Download"
+                @click.stop="downloadFile(file)"
               />
               <UButton
                 color="neutral"
@@ -334,11 +358,21 @@ function getFileIcon(filename: string): { name: string, color?: string } {
     
     <ShareModal
       v-if="itemToShare"
-      v-model="showShareModal"
+      v-model:open="showShareModal"
       :file-id="itemToShare.type === 'file' ? itemToShare.id : undefined"
       :file-name="itemToShare.type === 'file' ? itemToShare.name : undefined"
       :folder-id="itemToShare.type === 'folder' ? itemToShare.id : undefined"
       :folder-name="itemToShare.type === 'folder' ? itemToShare.name : undefined"
+    />
+
+    <!-- File Preview Modal -->
+    <FilePreviewModal
+      v-if="previewFile"
+      v-model:open="showPreviewModal"
+      :file-id="previewFile.id"
+      :file-name="previewFile.name"
+      :mime-type="previewFile.mimeType"
+      :download-url="previewDownloadUrl"
     />
   </div>
 </template>

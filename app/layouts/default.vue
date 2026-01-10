@@ -8,6 +8,12 @@ const sidebarOpen = ref(true)
 const sidebarCollapsed = ref(false)
 const mobileSidebarOpen = ref(false)
 
+// Hydration fix
+const mounted = ref(false)
+onMounted(() => {
+  mounted.value = true
+})
+
 // Toggle functions
 const toggleSidebar = () => {
   sidebarCollapsed.value = !sidebarCollapsed.value
@@ -33,7 +39,7 @@ provide('toggleSidebar', toggleSidebar)
 </script>
 
 <template>
-  <div class="app-layout bg-gray-50 dark:bg-gray-950">
+  <div v-if="mounted" class="app-layout bg-gray-50 dark:bg-gray-950">
     <!-- Mobile Sidebar Overlay -->
     <Transition name="fade">
       <div
@@ -85,6 +91,9 @@ provide('toggleSidebar', toggleSidebar)
         </div>
       </footer>
     </div>
+
+    <!-- Upload Progress Panel -->
+    <UploadProgressPanel />
   </div>
 </template>
 

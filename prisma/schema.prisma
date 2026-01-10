@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  email       String   @unique
-  username    String   @unique
-  password    String?  // Nullable for SSO users
+  id          String  @id @default(cuid())
+  email       String  @unique
+  username    String  @unique
+  password    String? // Nullable for SSO users
   name        String?
   avatar      String?
-  role        Role     @default(USER)
-  ssoProvider String?  // For SSO integration
-  ssoId       String?  // External SSO ID
-  
-  files       File[]
-  folders     Folder[]
-  shares      Share[]  @relation("SharedBy")
-  sharedWith  Share[]  @relation("SharedWith")
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  
+  role        Role    @default(USER)
+  ssoProvider String? // For SSO integration
+  ssoId       String? // External SSO ID
+
+  files      File[]
+  folders    Folder[]
+  shares     Share[]  @relation("SharedBy")
+  sharedWith Share[]  @relation("SharedWith")
+
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  notifications Notification[]
+
   @@index([email])
   @@index([ssoId])
 }
@@ -37,70 +38,72 @@ enum Role {
 }
 
 model Folder {
-  id        String   @id @default(cuid())
-  name      String
-  parentId  String?
-  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id])
-  children  Folder[] @relation("FolderTree")
-  
-  ownerId   String
-  owner     User     @relation(fields: [ownerId], references: [id])
-  
-  files     File[]
-  shares    Share[]
-  
+  id       String   @id @default(cuid())
+  name     String
+  isPublic Boolean  @default(false)
+  parentId String?
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id])
+  children Folder[] @relation("FolderTree")
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  files  File[]
+  shares Share[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  
+
   @@index([parentId])
   @@index([ownerId])
 }
 
 model File {
-  id           String   @id @default(cuid())
+  id           String  @id @default(cuid())
   name         String
   originalName String
   mimeType     String
   size         Int
-  minioKey     String   @unique // MinIO object key
-  
-  folderId     String?
-  folder       Folder?  @relation(fields: [folderId], references: [id])
-  
-  ownerId      String
-  owner        User     @relation(fields: [ownerId], references: [id])
-  
-  shares       Share[]
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  minioKey     String  @unique // MinIO object key
+  isPublic     Boolean @default(false)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id])
+
+  ownerId String
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  shares Share[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([folderId])
   @@index([ownerId])
 }
 
 model Share {
-  id          String      @id @default(cuid())
-  permission  Permission  @default(VIEW)
-  expiresAt   DateTime?
-  
-  fileId      String?
-  file        File?       @relation(fields: [fileId], references: [id], onDelete: Cascade)
-  
-  folderId    String?
-  folder      Folder?     @relation(fields: [folderId], references: [id], onDelete: Cascade)
-  
-  sharedById  String
-  sharedBy    User        @relation("SharedBy", fields: [sharedById], references: [id])
-  
+  id         String     @id @default(cuid())
+  permission Permission @default(VIEW)
+  expiresAt  DateTime?
+
+  fileId String?
+  file   File?   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+
+  sharedById String
+  sharedBy   User   @relation("SharedBy", fields: [sharedById], references: [id])
+
   sharedWithId String?
-  sharedWith   User?      @relation("SharedWith", fields: [sharedWithId], references: [id])
-  
+  sharedWith   User?   @relation("SharedWith", fields: [sharedWithId], references: [id])
+
   // Public share link
-  publicToken  String?    @unique
-  
-  createdAt   DateTime    @default(now())
-  
+  publicToken String? @unique
+
+  createdAt DateTime @default(now())
+
   @@index([fileId])
   @@index([folderId])
   @@index([sharedWithId])
@@ -111,4 +114,60 @@ enum Permission {
   VIEW
   DOWNLOAD
   EDIT
+}
+
+model SystemSettings {
+  id String @id @default("system")
+
+  // General
+  systemName String @default("FileMan")
+  timezone   String @default("Asia/Jakarta")
+
+  // Upload limits
+  maxFileSizeMB Int @default(100) // Max single file size in MB
+  maxStorageGB  Int @default(10) // Max storage per user in GB
+
+  // Features
+  allowPublicSharing    Boolean @default(true)
+  allowUserRegistration Boolean @default(false)
+
+  // Session
+  sessionTimeoutMinutes Int @default(60)
+
+  // Branding
+  logoUrl      String?
+  primaryColor String  @default("#3b82f6")
+
+  // Security
+  minPasswordLength      Int     @default(8)
+  requireSpecialChar     Boolean @default(true)
+  requireUppercase       Boolean @default(true)
+  requireNumber          Boolean @default(true)
+  maxLoginAttempts       Int     @default(5)
+  lockoutDurationMinutes Int     @default(15)
+  allowedFileTypes       String  @default("*") // Comma-separated or * for all
+  blockedFileTypes       String  @default(".exe,.bat,.cmd,.sh,.ps1") // Dangerous files
+
+  updatedAt DateTime @updatedAt
+}
+
+// Notification model for real-time notifications
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    String // 'file_shared', 'folder_shared', 'public_link', 'storage_warning', 'system'
+  title   String
+  message String?
+
+  // Related entities (optional)
+  fileId   String?
+  folderId String?
+
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([createdAt])
 }

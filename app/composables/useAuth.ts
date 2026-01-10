@@ -134,19 +134,29 @@ export const useAuth = () => {
    * Logout
    */
   const logout = async () => {
-    const idToken = authStore.tokens?.idToken
+    try {
+      const idToken = authStore.tokens?.idToken
 
-    // Clear local auth
-    authStore.clearAuth()
+      // Call logout API to clear server-side cookie
+      await $fetch('/api/auth/logout', { method: 'POST' })
 
-    // Redirect to SSO logout if we have id_token
-    if (idToken && import.meta.client) {
-      const logoutUrl = new URL(`${config.public.sso.baseUrl}/api/oidc/logout`)
-      logoutUrl.searchParams.set('id_token_hint', idToken)
-      logoutUrl.searchParams.set('post_logout_redirect_uri', window.location.origin)
-      
-      window.location.href = logoutUrl.toString()
-    } else {
+      // Clear local auth
+      authStore.clearAuth()
+
+      // Redirect to SSO logout if we have id_token
+      if (idToken && import.meta.client) {
+        const logoutUrl = new URL(`${config.public.sso.baseUrl}/api/oidc/logout`)
+        logoutUrl.searchParams.set('id_token_hint', idToken)
+        logoutUrl.searchParams.set('post_logout_redirect_uri', window.location.origin)
+        
+        window.location.href = logoutUrl.toString()
+      } else {
+        await router.push('/login')
+      }
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Force clear even if API fails
+      authStore.clearAuth()
       await router.push('/login')
     }
   }

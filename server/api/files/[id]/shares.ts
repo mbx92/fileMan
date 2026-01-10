@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { notifyFileShared } from '../../../utils/notifications'
 
 const shareSchema = z.object({
   email: z.string().email(),
@@ -105,7 +106,7 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    return await prisma.share.create({
+    const share = await prisma.share.create({
       data: {
         fileId,
         sharedById: user.id,
@@ -113,5 +114,15 @@ export default defineEventHandler(async (event) => {
         permission,
       },
     })
+    
+    // Send notification to the user being shared with
+    await notifyFileShared(
+      shareWithUser.id,
+      user.name || user.username,
+      file.name,
+      fileId
+    )
+    
+    return share
   }
 })

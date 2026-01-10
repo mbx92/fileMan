@@ -1,15 +1,20 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['admin']
+})
+
 const config = useRuntimeConfig()
 const toast = useToast()
+const settingsStore = useSettingsStore()
 
 // Tabs
 const selectedTab = ref('integrations')
 
 const tabs = [
-  { key: 'integrations', label: 'Integrations', icon: 'i-heroicons-puzzle-piece' },
-  { key: 'roles', label: 'SSO Roles', icon: 'i-heroicons-user-group' },
-  { key: 'general', label: 'General', icon: 'i-heroicons-cog-6-tooth' },
-  { key: 'security', label: 'Security', icon: 'i-heroicons-shield-check' },
+  { value: 'integrations', label: 'Integrations', icon: 'i-heroicons-puzzle-piece', slot: 'integrations' },
+  { value: 'roles', label: 'SSO Roles', icon: 'i-heroicons-user-group', slot: 'roles' },
+  { value: 'general', label: 'General', icon: 'i-heroicons-cog-6-tooth', slot: 'general' },
+  { value: 'security', label: 'Security', icon: 'i-heroicons-shield-check', slot: 'security' },
 ]
 
 // Role mapping info
@@ -34,43 +39,6 @@ const minioConfig = ref({
   useSSL: false,
 })
 
-// General Settings State
-const generalSettings = ref({
-  appName: 'NuxtBase',
-  description: 'Internal File Sharing System',
-  theme: 'system'
-})
-const generalSaving = ref(false)
-
-async function saveGeneralSettings() {
-  generalSaving.value = true
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  generalSaving.value = false
-  toast.add({ title: 'Saved', description: 'General settings updated', color: 'success' })
-}
-
-// Security Settings State
-const securitySettings = ref({
-  sessionTimeout: 60,
-  passwordPolicy: {
-    uppercase: true,
-    numbers: true,
-    specialChars: false,
-    minLength: true
-  },
-  mfaEnabled: false
-})
-const securitySaving = ref(false)
-
-async function saveSecuritySettings() {
-  securitySaving.value = true
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  securitySaving.value = false
-  toast.add({ title: 'Saved', description: 'Security settings updated', color: 'success' })
-}
-
 // Test states
 const ssoTestLoading = ref(false)
 const ssoTestResult = ref<any>(null)
@@ -88,6 +56,169 @@ if (minioData.value) {
     endpoint: minioData.value.endpoint,
     bucketName: minioData.value.bucketName,
     useSSL: minioData.value.useSSL,
+  }
+}
+
+// General Settings
+const generalSettingsLoading = ref(false)
+const generalSettingsSaving = ref(false)
+const generalSettings = ref({
+  systemName: 'FileMan',
+  timezone: 'Asia/Jakarta',
+  maxFileSizeMB: 100,
+  maxStorageGB: 10,
+  allowPublicSharing: true,
+  allowUserRegistration: false,
+  sessionTimeoutMinutes: 60,
+  primaryColor: '#3b82f6',
+})
+
+// Security Settings
+const securitySettingsLoading = ref(false)
+const securitySettingsSaving = ref(false)
+const securitySettings = ref({
+  minPasswordLength: 8,
+  requireSpecialChar: true,
+  requireUppercase: true,
+  requireNumber: true,
+  maxLoginAttempts: 5,
+  lockoutDurationMinutes: 15,
+  allowedFileTypes: '*',
+  blockedFileTypes: '.exe,.bat,.cmd,.sh,.ps1',
+})
+
+// Timezone options
+const timezones = [
+  // Indonesia
+  { label: 'WIB - Jakarta (UTC+7)', value: 'Asia/Jakarta' },
+  { label: 'WITA - Makassar (UTC+8)', value: 'Asia/Makassar' },
+  { label: 'WIT - Jayapura (UTC+9)', value: 'Asia/Jayapura' },
+  // Asia
+  { label: 'Singapore (UTC+8)', value: 'Asia/Singapore' },
+  { label: 'Tokyo (UTC+9)', value: 'Asia/Tokyo' },
+  { label: 'Seoul (UTC+9)', value: 'Asia/Seoul' },
+  { label: 'Hong Kong (UTC+8)', value: 'Asia/Hong_Kong' },
+  { label: 'Bangkok (UTC+7)', value: 'Asia/Bangkok' },
+  { label: 'Manila (UTC+8)', value: 'Asia/Manila' },
+  { label: 'Kuala Lumpur (UTC+8)', value: 'Asia/Kuala_Lumpur' },
+  // Europe
+  { label: 'London (UTC+0/+1)', value: 'Europe/London' },
+  { label: 'Paris (UTC+1/+2)', value: 'Europe/Paris' },
+  { label: 'Berlin (UTC+1/+2)', value: 'Europe/Berlin' },
+  // Americas
+  { label: 'New York (UTC-5/-4)', value: 'America/New_York' },
+  { label: 'Los Angeles (UTC-8/-7)', value: 'America/Los_Angeles' },
+  { label: 'Chicago (UTC-6/-5)', value: 'America/Chicago' },
+  // Other
+  { label: 'Sydney (UTC+10/+11)', value: 'Australia/Sydney' },
+  { label: 'Auckland (UTC+12/+13)', value: 'Pacific/Auckland' },
+  { label: 'UTC', value: 'UTC' },
+]
+
+// Load general settings
+async function loadGeneralSettings() {
+  try {
+    generalSettingsLoading.value = true
+    const data: any = await $fetch('/api/settings/general')
+    if (data) {
+      generalSettings.value = {
+        systemName: data.systemName || 'FileMan',
+        timezone: data.timezone || 'Asia/Jakarta',
+        maxFileSizeMB: data.maxFileSizeMB || 100,
+        maxStorageGB: data.maxStorageGB || 10,
+        allowPublicSharing: data.allowPublicSharing ?? true,
+        allowUserRegistration: data.allowUserRegistration ?? false,
+        sessionTimeoutMinutes: data.sessionTimeoutMinutes || 60,
+        primaryColor: data.primaryColor || '#3b82f6',
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load settings:', error)
+  } finally {
+    generalSettingsLoading.value = false
+  }
+}
+
+// Save general settings
+async function saveGeneralSettings() {
+  try {
+    generalSettingsSaving.value = true
+    await $fetch('/api/settings/general', {
+      method: 'POST',
+      body: generalSettings.value,
+    })
+    
+    // Update global store so sidebar reflects changes immediately
+    settingsStore.updateSettings(generalSettings.value)
+    
+    toast.add({
+      title: 'Settings Saved',
+      description: 'General settings have been saved successfully',
+      icon: 'i-heroicons-check-circle',
+    })
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to save settings',
+      color: 'error',
+      icon: 'i-heroicons-x-circle',
+    })
+  } finally {
+    generalSettingsSaving.value = false
+  }
+}
+
+// Load settings on mount
+onMounted(() => {
+  loadGeneralSettings()
+  loadSecuritySettings()
+})
+
+// Load security settings
+async function loadSecuritySettings() {
+  try {
+    securitySettingsLoading.value = true
+    const data: any = await $fetch('/api/settings/general')
+    if (data) {
+      securitySettings.value = {
+        minPasswordLength: data.minPasswordLength || 8,
+        requireSpecialChar: data.requireSpecialChar ?? true,
+        requireUppercase: data.requireUppercase ?? true,
+        requireNumber: data.requireNumber ?? true,
+        maxLoginAttempts: data.maxLoginAttempts || 5,
+        lockoutDurationMinutes: data.lockoutDurationMinutes || 15,
+        allowedFileTypes: data.allowedFileTypes || '*',
+        blockedFileTypes: data.blockedFileTypes || '.exe,.bat,.cmd,.sh,.ps1',
+      }
+    }
+  } catch (error) {
+    console.error('Failed to load security settings:', error)
+  } finally {
+    securitySettingsLoading.value = false
+  }
+}
+
+// Save security settings
+async function saveSecuritySettings() {
+  try {
+    securitySettingsSaving.value = true
+    await $fetch('/api/settings/general', {
+      method: 'POST',
+      body: securitySettings.value,
+    })
+    toast.add({
+      title: 'Saved',
+      description: 'Security settings saved successfully',
+      color: 'success',
+    })
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to save security settings',
+      color: 'error',
+    })
+  } finally {
+    securitySettingsSaving.value = false
   }
 }
 
@@ -228,499 +359,512 @@ function copyToClipboard(text: string) {
 }
 </script>
 
+
 <template>
-  <div class="p-6 h-full overflow-auto">
-    <div class="max-w-5xl mx-auto space-y-6">
-      <!-- Header -->
-      <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <p class="text-gray-500 dark:text-gray-400 mt-1">Manage application settings and integrations</p>
-      </div>
+  <div class="p-6 space-y-6">
+    <!-- Header -->
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+      <p class="text-gray-500 dark:text-gray-400 mt-1">Manage application settings and integrations</p>
+    </div>
 
-      <!-- Tabs -->
-      <UTabs v-model="selectedTab" :items="tabs" class="w-full">
-        <!-- Integrations Tab -->
-        <template #content="{ item }">
-          <div v-if="item.key === 'integrations'" class="space-y-6 pt-6">
-            <!-- SSO Integration -->
-            <UCard>
-              <template #header>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <UIcon name="i-heroicons-shield-check" class="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-lg">SSO Integration</h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">OpenID Connect configuration</p>
-                    </div>
-                  </div>
-                  <UBadge color="success" variant="subtle">
-                    <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
-                    Active
-                  </UBadge>
-                </div>
-              </template>
-
-              <div class="space-y-4">
-                <!-- SSO Base URL -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    SSO Server URL
-                  </label>
-                  <div class="flex gap-2">
-                    <UInput
-                      v-model="ssoConfig.baseUrl"
-                      readonly
-                      class="flex-1"
-                      icon="i-heroicons-link"
-                    />
-                    <UButton
-                      icon="i-heroicons-clipboard-document"
-                      color="neutral"
-                      variant="outline"
-                      @click="copyToClipboard(ssoConfig.baseUrl)"
-                    />
-                  </div>
-                </div>
-
-                <!-- Client ID -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    Client ID
-                  </label>
-                  <div class="flex gap-2">
-                    <UInput
-                      v-model="ssoConfig.clientId"
-                      readonly
-                      class="flex-1"
-                      icon="i-heroicons-key"
-                    />
-                    <UButton
-                      icon="i-heroicons-clipboard-document"
-                      color="neutral"
-                      variant="outline"
-                      @click="copyToClipboard(ssoConfig.clientId)"
-                    />
-                  </div>
-                </div>
-
-                <!-- Redirect URI -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    Redirect URI
-                  </label>
-                  <div class="flex gap-2">
-                    <UInput
-                      v-model="ssoConfig.redirectUri"
-                      readonly
-                      class="flex-1"
-                      icon="i-heroicons-arrow-uturn-left"
-                    />
-                    <UButton
-                      icon="i-heroicons-clipboard-document"
-                      color="neutral"
-                      variant="outline"
-                      @click="copyToClipboard(ssoConfig.redirectUri)"
-                    />
-                  </div>
-                </div>
-
-                <!-- Scopes -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    Scopes
-                  </label>
-                  <UInput
-                    v-model="ssoConfig.scopes"
-                    readonly
-                    icon="i-heroicons-list-bullet"
-                  />
-                </div>
-
-                <!-- Test Connection -->
-                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
-                  <div class="flex gap-2">
-                    <UButton
-                      icon="i-heroicons-signal"
-                      :loading="ssoTestLoading"
-                      @click="testSSOConnection"
-                    >
-                      Test SSO Server
-                    </UButton>
-                    
-                    <UButton
-                      icon="i-heroicons-user-circle"
-                      color="primary"
-                      variant="outline"
-                      :loading="userInfoTestLoading"
-                      @click="testUserInfo"
-                    >
-                      Check My Role from SSO
-                    </UButton>
-                  </div>
-
-                  <!-- Test Result -->
-                  <div v-if="ssoTestResult" class="mt-4">
-                    <UAlert
-                      :color="ssoTestResult.success ? 'success' : 'error'"
-                      :icon="ssoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
-                      :title="ssoTestResult.success ? 'Connection Successful' : 'Connection Failed'"
-                      :description="ssoTestResult.message"
-                    />
-                    
-                    <div v-if="ssoTestResult.data" class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400">
-                        {{ JSON.stringify(ssoTestResult.data, null, 2) }}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <!-- UserInfo Test Result -->
-                  <div v-if="userInfoTestResult" class="mt-4">
-                    <UAlert
-                      :color="userInfoTestResult.success ? 'success' : 'error'"
-                      :icon="userInfoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
-                      :title="userInfoTestResult.success ? 'UserInfo Retrieved' : 'UserInfo Failed'"
-                    >
-                      <template #description>
-                        <div class="space-y-2">
-                          <p>{{ userInfoTestResult.message }}</p>
-                          <div v-if="userInfoTestResult.data?.roleFields" class="mt-3 p-3 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700">
-                            <p class="text-sm font-semibold mb-2">Role Fields Check:</p>
-                            <ul class="text-sm space-y-1">
-                              <li class="flex items-center gap-2">
-                                <UIcon 
-                                  :name="userInfoTestResult.data.roleFields.hasRole ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" 
-                                  :class="userInfoTestResult.data.roleFields.hasRole ? 'text-green-500' : 'text-red-500'"
-                                />
-                                <code class="text-xs">userInfo.role</code>
-                                <span v-if="userInfoTestResult.data.roleFields.hasRole" class="text-xs">
-                                  = <strong>{{ userInfoTestResult.data.roleFields.roleValue }}</strong>
-                                </span>
-                                <span v-else class="text-xs text-gray-500">(not found)</span>
-                              </li>
-                              <li class="flex items-center gap-2">
-                                <UIcon 
-                                  :name="userInfoTestResult.data.roleFields.hasRoleName ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" 
-                                  :class="userInfoTestResult.data.roleFields.hasRoleName ? 'text-green-500' : 'text-red-500'"
-                                />
-                                <code class="text-xs">userInfo.role_name</code>
-                                <span v-if="userInfoTestResult.data.roleFields.hasRoleName" class="text-xs">
-                                  = <strong>{{ userInfoTestResult.data.roleFields.roleNameValue }}</strong>
-                                </span>
-                                <span v-else class="text-xs text-gray-500">(not found)</span>
-                              </li>
-                            </ul>
-                          </div>
-                        </div>
-                      </template>
-                    </UAlert>
-                    
-                    <div v-if="userInfoTestResult.data?.userInfo" class="mt-2">
-                      <details class="cursor-pointer">
-                        <summary class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Full UserInfo Response (click to expand)
-                        </summary>
-                        <div class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg overflow-auto max-h-96">
-                          <p class="text-xs font-mono text-gray-600 dark:text-gray-400 whitespace-pre">{{ JSON.stringify(userInfoTestResult.data.userInfo, null, 2) }}</p>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </UCard>
-
-            <!-- MinIO Integration -->
-            <UCard>
-              <template #header>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                      <UIcon name="i-heroicons-cloud" class="w-5 h-5 text-purple-500" />
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-lg">MinIO Storage</h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Object storage configuration</p>
-                    </div>
-                  </div>
-                  <UBadge color="success" variant="subtle">
-                    <UIcon name="i-heroicons-check-circle" class="w-3 h-3 mr-1" />
-                    Active
-                  </UBadge>
-                </div>
-              </template>
-
-              <div class="space-y-4">
-                <!-- Endpoint -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    Endpoint
-                  </label>
-                  <div class="flex gap-2">
-                    <UInput
-                      v-model="minioConfig.endpoint"
-                      readonly
-                      class="flex-1"
-                      icon="i-heroicons-server"
-                    />
-                    <UButton
-                      icon="i-heroicons-clipboard-document"
-                      color="neutral"
-                      variant="outline"
-                      @click="copyToClipboard(minioConfig.endpoint)"
-                    />
-                  </div>
-                </div>
-
-                <!-- Bucket Name -->
-                <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                    Bucket Name
-                  </label>
-                  <UInput
-                    v-model="minioConfig.bucketName"
-                    readonly
-                    icon="i-heroicons-folder"
-                  />
-                </div>
-
-                <!-- Use SSL -->
+    <!-- Tabs -->
+    <UTabs v-model="selectedTab" :items="tabs">
+      <!-- Integrations Tab -->
+      <template #integrations>
+        <div class="space-y-6">
+          <!-- SSO Integration -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
                 <div class="flex items-center gap-3">
-                  <UToggle
-                    v-model="minioConfig.useSSL"
-                    disabled
-                  />
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Use SSL/TLS
-                  </label>
+                  <div class="p-2 bg-primary-100 dark:bg-primary-900 rounded-lg">
+                    <UIcon name="i-heroicons-key" class="w-5 h-5 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">SSO Integration</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">OAuth2/OIDC Configuration</p>
+                  </div>
                 </div>
+                <UBadge color="primary" variant="subtle">Active</UBadge>
+              </div>
+            </template>
 
-                <!-- Test Connection -->
-                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                  <UButton
-                    icon="i-heroicons-signal"
-                    color="primary"
-                    :loading="minioTestLoading"
-                    @click="testMinIOConnection"
-                  >
-                    Test MinIO Connection
-                  </UButton>
-
-                  <!-- Test Result -->
-                  <div v-if="minioTestResult" class="mt-4">
-                    <UAlert
-                      :color="minioTestResult.success ? 'success' : 'error'"
-                      :icon="minioTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'"
-                      :title="minioTestResult.success ? 'Connection Successful' : 'Connection Failed'"
-                      :description="minioTestResult.message"
-                    />
-                    
-                    <div v-if="minioTestResult.data" class="mt-2 p-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400">
-                        {{ JSON.stringify(minioTestResult.data, null, 2) }}
-                      </p>
-                    </div>
+            <div class="space-y-4">
+              <!-- SSO Config Display -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Base URL</label>
+                  <div class="mt-1 flex gap-2">
+                    <UInput v-model="ssoConfig.baseUrl" readonly class="flex-1" />
+                    <UButton icon="i-heroicons-clipboard" variant="ghost" @click="copyToClipboard(ssoConfig.baseUrl)" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Client ID</label>
+                  <div class="mt-1 flex gap-2">
+                    <UInput v-model="ssoConfig.clientId" readonly class="flex-1" />
+                    <UButton icon="i-heroicons-clipboard" variant="ghost" @click="copyToClipboard(ssoConfig.clientId)" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Redirect URI</label>
+                  <div class="mt-1 flex gap-2">
+                    <UInput v-model="ssoConfig.redirectUri" readonly class="flex-1" />
+                    <UButton icon="i-heroicons-clipboard" variant="ghost" @click="copyToClipboard(ssoConfig.redirectUri)" />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Scopes</label>
+                  <div class="mt-1">
+                    <UInput v-model="ssoConfig.scopes" readonly />
                   </div>
                 </div>
               </div>
-            </UCard>
-          </div>
 
-          <div v-else-if="item.key === 'roles'" class="space-y-6 pt-6">
-            <!-- Role Mapping Card -->
-            <UCard>
-              <template #header>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <UIcon name="i-heroicons-user-group" class="w-5 h-5 text-blue-500" />
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-lg">SSO Role Mapping</h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">How SSO roles are mapped to FileMan roles</p>
-                    </div>
+              <!-- Test Buttons -->
+              <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <UButton color="primary" variant="outline" :loading="ssoTestLoading" @click="testSSOConnection">
+                  <template #leading>
+                    <UIcon name="i-heroicons-signal" />
+                  </template>
+                  Test Connection
+                </UButton>
+                <UButton color="primary" variant="outline" :loading="userInfoTestLoading" @click="testUserInfo">
+                  <template #leading>
+                    <UIcon name="i-heroicons-user-circle" />
+                  </template>
+                  Test UserInfo
+                </UButton>
+              </div>
+
+              <!-- SSO Test Results -->
+              <div v-if="ssoTestResult" class="mt-4 p-4 rounded-lg" :class="ssoTestResult.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
+                <div class="flex items-start gap-3">
+                  <UIcon :name="ssoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" class="w-5 h-5 mt-0.5" :class="ssoTestResult.success ? 'text-green-600' : 'text-red-600'" />
+                  <div class="flex-1">
+                    <p class="font-medium" :class="ssoTestResult.success ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'">
+                      {{ ssoTestResult.message }}
+                    </p>
+                    <pre v-if="ssoTestResult.data" class="mt-2 text-xs overflow-auto">{{ JSON.stringify(ssoTestResult.data, null, 2) }}</pre>
                   </div>
-                  <UBadge color="primary" variant="subtle">
-                    <UIcon name="i-heroicons-arrow-path" class="w-3 h-3 mr-1" />
-                    Auto Sync
-                  </UBadge>
-                </div>
-              </template>
-
-              <div class="space-y-6">
-                <!-- Info Alert -->
-                <UAlert
-                  color="primary"
-                  icon="i-heroicons-information-circle"
-                  title="Automatic Role Synchronization"
-                  description="When users login via SSO, their roles are automatically synced to the database. The mapping below shows how SSO roles are converted to FileMan roles."
-                />
-
-                <!-- Role Mapping Table -->
-                <div class="space-y-4">
-                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                    Role Mapping Rules
-                  </h4>
-                  
-                  <div class="space-y-3">
-                    <div
-                      v-for="mapping in roleMappings"
-                      :key="mapping.fileManRole"
-                      class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
-                    >
-                      <div class="flex items-start justify-between gap-4">
-                        <div class="flex-1">
-                          <div class="flex items-center gap-3 mb-2">
-                            <UBadge :color="mapping.color" size="lg">
-                              {{ mapping.fileManRole }}
-                            </UBadge>
-                            <UIcon name="i-heroicons-arrow-left" class="w-4 h-4 text-gray-400" />
-                            <code class="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-gray-700 dark:text-gray-300">
-                              {{ mapping.ssoRole }}
-                            </code>
-                          </div>
-                          <p class="text-sm text-gray-600 dark:text-gray-400">
-                            {{ mapping.description }}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- SSO User Info Fields -->
-                <div class="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-4">
-                  <h4 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider">
-                    SSO UserInfo Fields Used
-                  </h4>
-                  
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">
-                        userInfo.role
-                      </p>
-                      <p class="text-sm text-gray-700 dark:text-gray-300">
-                        Primary role field (recommended)
-                      </p>
-                    </div>
-                    
-                    <div class="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                      <p class="text-xs font-mono text-gray-600 dark:text-gray-400 mb-1">
-                        userInfo.role_name
-                      </p>
-                      <p class="text-sm text-gray-700 dark:text-gray-300">
-                        Fallback role field (alternative)
-                      </p>
-                    </div>
-                  </div>
-
-                  <UAlert
-                    color="warning"
-                    icon="i-heroicons-exclamation-triangle"
-                    title="Default Role"
-                    description="If no role is provided by SSO, users will be assigned the 'USER' role by default."
-                  />
                 </div>
               </div>
-            </UCard>
-          </div>
 
-
-          <div v-if="item.key === 'general'" class="space-y-6 pt-6">
-            <UCard>
-              <template #header>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-                      <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5 text-orange-500" />
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-lg">General Settings</h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Application display settings</p>
-                    </div>
+              <!-- UserInfo Test Results -->
+              <div v-if="userInfoTestResult" class="mt-4 p-4 rounded-lg" :class="userInfoTestResult.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
+                <div class="flex items-start gap-3">
+                  <UIcon :name="userInfoTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" class="w-5 h-5 mt-0.5" :class="userInfoTestResult.success ? 'text-green-600' : 'text-red-600'" />
+                  <div class="flex-1">
+                    <p class="font-medium" :class="userInfoTestResult.success ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'">
+                      {{ userInfoTestResult.message }}
+                    </p>
+                    <pre v-if="userInfoTestResult.data" class="mt-2 text-xs overflow-auto">{{ JSON.stringify(userInfoTestResult.data, null, 2) }}</pre>
                   </div>
-                  <UButton size="sm" color="black" @click="saveGeneralSettings" :loading="generalSaving">Save Changes</UButton>
                 </div>
-              </template>
-              
-              <div class="space-y-6">
-                <UFormField label="Application Name" description="The name displayed in the browser tab and sidebar">
-                  <UInput v-model="generalSettings.appName" placeholder="NuxtBase" icon="i-heroicons-computer-desktop" size="lg" class="w-full" />
-                </UFormField>
-                
-                <UFormField label="Description" description="Brief description of the application">
-                  <UTextarea v-model="generalSettings.description" placeholder="Internal File Sharing System" size="lg" class="w-full" />
-                </UFormField>
-                
-                <UFormField label="Default Theme" description="System default color mode">
-                  <USelect 
-                    v-model="generalSettings.theme" 
+              </div>
+            </div>
+          </UCard>
+
+          <!-- MinIO Integration -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                    <UIcon name="i-heroicons-cloud" class="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">MinIO Storage</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">Object Storage Configuration</p>
+                  </div>
+                </div>
+                <UBadge color="orange" variant="subtle">Active</UBadge>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Endpoint</label>
+                  <div class="mt-1">
+                    <UInput v-model="minioConfig.endpoint" readonly />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Bucket Name</label>
+                  <div class="mt-1">
+                    <UInput v-model="minioConfig.bucketName" readonly />
+                  </div>
+                </div>
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Use SSL</label>
+                  <div class="mt-1">
+                    <UBadge :color="minioConfig.useSSL ? 'green' : 'gray'">
+                      {{ minioConfig.useSSL ? 'Enabled' : 'Disabled' }}
+                    </UBadge>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <UButton color="orange" variant="outline" :loading="minioTestLoading" @click="testMinIOConnection">
+                  <template #leading>
+                    <UIcon name="i-heroicons-signal" />
+                  </template>
+                  Test Connection
+                </UButton>
+              </div>
+
+              <!-- MinIO Test Results -->
+              <div v-if="minioTestResult" class="mt-4 p-4 rounded-lg" :class="minioTestResult.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
+                <div class="flex items-start gap-3">
+                  <UIcon :name="minioTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" class="w-5 h-5 mt-0.5" :class="minioTestResult.success ? 'text-green-600' : 'text-red-600'" />
+                  <div class="flex-1">
+                    <p class="font-medium" :class="minioTestResult.success ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'">
+                      {{ minioTestResult.message }}
+                    </p>
+                    <pre v-if="minioTestResult.data" class="mt-2 text-xs overflow-auto">{{ JSON.stringify(minioTestResult.data, null, 2) }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UCard>
+        </div>
+      </template>
+
+      <!-- Roles Tab -->
+      <template #roles>
+        <UCard>
+          <template #header>
+            <div>
+              <h3 class="text-lg font-semibold text-gray-900 dark:text-white">SSO Role Mapping</h3>
+              <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">How SSO roles are mapped to FileMan roles</p>
+            </div>
+          </template>
+
+          <div class="space-y-4">
+            <div v-for="mapping in roleMappings" :key="mapping.fileManRole" class="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <div class="flex items-start justify-between">
+                <div class="flex-1">
+                  <div class="flex items-center gap-3">
+                    <UBadge :color="mapping.color" variant="subtle" size="lg">
+                      {{ mapping.fileManRole }}
+                    </UBadge>
+                    <span class="text-sm text-gray-500 dark:text-gray-400">←</span>
+                    <code class="text-sm px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">{{ mapping.ssoRole }}</code>
+                  </div>
+                  <p class="text-sm text-gray-600 dark:text-gray-400 mt-2">{{ mapping.description }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <div class="flex gap-3">
+                <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <div class="text-sm text-blue-900 dark:text-blue-100">
+                  <p class="font-medium mb-2">Role Mapping Rules:</p>
+                  <ul class="list-disc list-inside space-y-1 text-blue-800 dark:text-blue-200">
+                    <li>SSO role field should be: <code class="px-1 bg-blue-100 dark:bg-blue-800 rounded">role</code> or <code class="px-1 bg-blue-100 dark:bg-blue-800 rounded">roles</code></li>
+                    <li>Multiple SSO role values can map to the same FileMan role (comma-separated above)</li>
+                    <li>Role matching is case-insensitive</li>
+                    <li>If no match is found, user defaults to USER role</li>
+                    <li>Use "Test UserInfo" in Integrations tab to verify role field exists</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </template>
+
+      <!-- General Tab -->
+      <template #general>
+        <div class="space-y-6">
+          <!-- System Info Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <UIcon name="i-heroicons-building-office" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">System Information</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Basic system configuration</p>
+                </div>
+              </div>
+            </template>
+
+            <div v-if="generalSettingsLoading" class="text-center py-8">
+              <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+              <p class="text-gray-500 mt-2">Loading settings...</p>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">System Name</label>
+                  <UInput v-model="generalSettings.systemName" placeholder="FileMan" />
+                  <p class="text-xs text-gray-500 mt-1">Display name for the application</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Timezone</label>
+                  <USelectMenu 
+                    v-model="generalSettings.timezone" 
+                    value-key="id"
                     :items="[
-                      { label: 'System', value: 'system' }, 
-                      { label: 'Light', value: 'light' }, 
-                      { label: 'Dark', value: 'dark' }
+                      { label: 'WIB - Jakarta (UTC+7)', id: 'Asia/Jakarta' },
+                      { label: 'WITA - Makassar (UTC+8)', id: 'Asia/Makassar' },
+                      { label: 'WIT - Jayapura (UTC+9)', id: 'Asia/Jayapura' },
+                      { label: 'Singapore (UTC+8)', id: 'Asia/Singapore' },
+                      { label: 'Tokyo (UTC+9)', id: 'Asia/Tokyo' },
+                      { label: 'Bangkok (UTC+7)', id: 'Asia/Bangkok' },
+                      { label: 'Hong Kong (UTC+8)', id: 'Asia/Hong_Kong' },
+                      { label: 'Kuala Lumpur (UTC+8)', id: 'Asia/Kuala_Lumpur' },
+                      { label: 'Manila (UTC+8)', id: 'Asia/Manila' },
+                      { label: 'UTC', id: 'UTC' },
                     ]"
-                    size="lg"
                     class="w-full"
                   />
-                </UFormField>
+                  <p class="text-xs text-gray-500 mt-1">Default timezone for the system</p>
+                </div>
               </div>
-            </UCard>
-          </div>
+            </div>
+          </UCard>
 
-          <div v-else-if="item.key === 'security'" class="space-y-6 pt-6">
-            <UCard>
-              <template #header>
-                <div class="flex items-center justify-between">
-                  <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-lg bg-red-500/10 flex items-center justify-center">
-                      <UIcon name="i-heroicons-shield-check" class="w-5 h-5 text-red-500" />
-                    </div>
-                    <div>
-                      <h3 class="font-semibold text-lg">Security Settings</h3>
-                      <p class="text-sm text-gray-500 dark:text-gray-400">Security policies and timeouts</p>
-                    </div>
-                  </div>
-                  <UButton size="sm" color="black" @click="saveSecuritySettings" :loading="securitySaving">Save Changes</UButton>
+          <!-- Upload Limits Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                  <UIcon name="i-heroicons-arrow-up-tray" class="w-5 h-5 text-orange-600 dark:text-orange-400" />
                 </div>
-              </template>
-              
-              <div class="space-y-6">
-                <!-- Session Timeout -->
-                <UFormField label="Session Timeout (minutes)" description="Automatically log users out after inactivity">
-                  <UInput v-model="securitySettings.sessionTimeout" type="number" icon="i-heroicons-clock" size="lg" class="w-full" />
-                </UFormField>
-                
-                <USeparator />
-                
-                <!-- Password Policy -->
                 <div>
-                  <h4 class="text-sm font-medium text-gray-900 dark:text-white mb-3">Password Policy</h4>
-                  <div class="space-y-3">
-                    <UCheckbox v-model="securitySettings.passwordPolicy.uppercase" label="Require Uppercase Letter" />
-                    <UCheckbox v-model="securitySettings.passwordPolicy.numbers" label="Require Numbers" />
-                    <UCheckbox v-model="securitySettings.passwordPolicy.specialChars" label="Require Special Characters" />
-                    <UCheckbox v-model="securitySettings.passwordPolicy.minLength" label="Minimum Length (8 characters)" />
-                  </div>
-                </div>
-                
-                <USeparator />
-                
-                <!-- MFA -->
-                <div class="flex items-center justify-between">
-                  <div>
-                    <h4 class="text-sm font-medium text-gray-900 dark:text-white">Multi-Factor Authentication (MFA)</h4>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Enforce 2FA for all users</p>
-                  </div>
-                  <USwitch v-model="securitySettings.mfaEnabled" />
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Upload & Storage Limits</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Configure file upload and storage restrictions</p>
                 </div>
               </div>
-            </UCard>
+            </template>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max File Size (MB)</label>
+                  <UInput v-model="generalSettings.maxFileSizeMB" type="number" min="1" max="10240" />
+                  <p class="text-xs text-gray-500 mt-1">Maximum size for a single file upload (1-10240 MB)</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Storage Per User (GB)</label>
+                  <UInput v-model="generalSettings.maxStorageGB" type="number" min="1" max="1000" />
+                  <p class="text-xs text-gray-500 mt-1">Maximum storage quota per user (1-1000 GB)</p>
+                </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Features Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                  <UIcon name="i-heroicons-cog-6-tooth" class="w-5 h-5 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Features</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Enable or disable system features</p>
+                </div>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <p class="font-medium text-gray-900 dark:text-white">Allow Public Sharing</p>
+                  <p class="text-sm text-gray-500">Users can create public links for files and folders</p>
+                </div>
+                <USwitch v-model="generalSettings.allowPublicSharing" />
+              </div>
+              
+              <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <p class="font-medium text-gray-900 dark:text-white">Allow User Registration</p>
+                  <p class="text-sm text-gray-500">New users can register without admin approval</p>
+                </div>
+                <USwitch v-model="generalSettings.allowUserRegistration" />
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Session Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                  <UIcon name="i-heroicons-clock" class="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Session Settings</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Configure user session behavior</p>
+                </div>
+              </div>
+            </template>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Session Timeout (minutes)</label>
+              <UInput v-model="generalSettings.sessionTimeoutMinutes" type="number" min="5" max="1440" class="w-48" />
+              <p class="text-xs text-gray-500 mt-1">Auto logout after inactivity (5-1440 minutes)</p>
+            </div>
+          </UCard>
+
+          <!-- Save Button -->
+          <div class="flex justify-end">
+            <UButton color="primary" size="lg" :loading="generalSettingsSaving" @click="saveGeneralSettings">
+              <template #leading>
+                <UIcon name="i-heroicons-check" />
+              </template>
+              Save Settings
+            </UButton>
           </div>
-        </template>
-      </UTabs>
-    </div>
+        </div>
+      </template>
+
+      <!-- Security Tab -->
+      <template #security>
+        <div class="space-y-6">
+          <!-- Password Requirements Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                  <UIcon name="i-heroicons-key" class="w-5 h-5 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Password Requirements</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Configure password strength requirements</p>
+                </div>
+              </div>
+            </template>
+
+            <div v-if="securitySettingsLoading" class="text-center py-8">
+              <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-gray-400 mx-auto" />
+              <p class="text-gray-500 mt-2">Loading settings...</p>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Minimum Password Length</label>
+                <UInput v-model="securitySettings.minPasswordLength" type="number" min="6" max="32" class="w-48" />
+                <p class="text-xs text-gray-500 mt-1">Minimum characters required (6-32)</p>
+              </div>
+
+              <div class="space-y-3">
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white">Require Special Character</p>
+                    <p class="text-sm text-gray-500">Must contain symbols like !@#$%^&*()</p>
+                  </div>
+                  <USwitch v-model="securitySettings.requireSpecialChar" />
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white">Require Uppercase Letter</p>
+                    <p class="text-sm text-gray-500">Must contain at least one uppercase letter (A-Z)</p>
+                  </div>
+                  <USwitch v-model="securitySettings.requireUppercase" />
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white">Require Number</p>
+                    <p class="text-sm text-gray-500">Must contain at least one number (0-9)</p>
+                  </div>
+                  <USwitch v-model="securitySettings.requireNumber" />
+                </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Login Protection Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                  <UIcon name="i-heroicons-shield-exclamation" class="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Login Protection</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Brute force attack prevention</p>
+                </div>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Login Attempts</label>
+                  <UInput v-model="securitySettings.maxLoginAttempts" type="number" min="1" max="20" />
+                  <p class="text-xs text-gray-500 mt-1">Failed attempts before lockout (1-20)</p>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lockout Duration (minutes)</label>
+                  <UInput v-model="securitySettings.lockoutDurationMinutes" type="number" min="1" max="1440" />
+                  <p class="text-xs text-gray-500 mt-1">Account lockout time (1-1440 minutes)</p>
+                </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- File Type Restrictions Card -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <UIcon name="i-heroicons-document-check" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 class="text-lg font-semibold text-gray-900 dark:text-white">File Type Restrictions</h3>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Control which file types users can upload</p>
+                </div>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Allowed File Types</label>
+                <UInput v-model="securitySettings.allowedFileTypes" placeholder="* or .pdf,.docx,.jpg" />
+                <p class="text-xs text-gray-500 mt-1">Use * for all types, or comma-separated extensions (.pdf,.docx,.jpg)</p>
+              </div>
+
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Blocked File Types</label>
+                <UInput v-model="securitySettings.blockedFileTypes" placeholder=".exe,.bat,.cmd" />
+                <p class="text-xs text-gray-500 mt-1">Comma-separated extensions to block (e.g. .exe,.bat,.cmd,.sh,.ps1)</p>
+              </div>
+
+              <div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+                <div class="flex gap-3">
+                  <UIcon name="i-heroicons-exclamation-triangle" class="w-5 h-5 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+                  <div class="text-sm text-yellow-800 dark:text-yellow-200">
+                    <p class="font-medium mb-1">Security Notice</p>
+                    <p>Executable files (.exe, .bat, .cmd, .sh, .ps1) are blocked by default to prevent malicious uploads. Removing these from the blocked list is not recommended.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- Save Button -->
+          <div class="flex justify-end">
+            <UButton color="primary" size="lg" :loading="securitySettingsSaving" @click="saveSecuritySettings">
+              <template #leading>
+                <UIcon name="i-heroicons-check" />
+              </template>
+              Save Security Settings
+            </UButton>
+          </div>
+        </div>
+      </template>
+    </UTabs>
   </div>
 </template>

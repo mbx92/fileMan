@@ -11,7 +11,7 @@ export default defineNuxtRouteMiddleware(async (to) => {
   }
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/auth/callback']
+  const publicRoutes = ['/login', '/auth/callback', '/public']
   const isPublicRoute = publicRoutes.some(route => to.path.startsWith(route))
 
   // Handle root path - redirect based on auth status

@@ -215,7 +215,7 @@ watch(
       
       <template v-if="data?.breadcrumbs">
         <template v-for="(crumb, index) in data.breadcrumbs" :key="crumb.id">
-          <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <UIcon name="i-heroicons-chevron-right" class="w-4 h-4 text-gray-400 shrink-0" />
           <UButton
             variant="ghost"
             color="neutral"

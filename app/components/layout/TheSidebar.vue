@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
+import { useSettingsStore } from '~/stores/settings'
 
 interface Props {
   collapsed?: boolean
@@ -16,6 +17,7 @@ const emit = defineEmits<{
 const appConfig = useAppConfig()
 const route = useRoute()
 const authStore = useAuthStore()
+const settingsStore = useSettingsStore()
 
 // Role color mapping
 const roleColors = {
@@ -29,6 +31,7 @@ interface NavItem {
   icon?: string
   to?: string
   children?: NavItem[]
+  adminOnly?: boolean
 }
 
 // Default navigation if app.config doesn't provide it
@@ -51,17 +54,25 @@ const defaultNavigation: NavItem[] = [
   {
     label: 'Users',
     icon: 'i-heroicons-users',
-    to: '/dashboard/users'
+    to: '/dashboard/users',
+    adminOnly: true
   },
   {
     label: 'Settings',
     icon: 'i-heroicons-cog-6-tooth',
-    to: '/dashboard/settings'
+    to: '/dashboard/settings',
+    adminOnly: true
   }
 ]
 
-// Navigation items from app config with fallback
-const navigation = computed(() => appConfig.navigation?.sidebar || defaultNavigation)
+// Navigation items from app config with fallback, filtered by role
+const navigation = computed(() => {
+  const items = appConfig.navigation?.sidebar || defaultNavigation
+  return items.filter((item: NavItem) => {
+    if (item.adminOnly && !authStore.isAdmin) return false
+    return true
+  })
+})
 
 // Track expanded items
 const expandedItems = ref<Set<string>>(new Set())
@@ -121,7 +132,7 @@ onMounted(() => {
         </div>
         <Transition name="slide-fade">
           <span v-if="!collapsed" class="font-bold text-lg text-gray-900 dark:text-white whitespace-nowrap">
-            {{ appConfig.app?.name || 'NuxtBase' }}
+            {{ settingsStore.systemName }}
           </span>
         </Transition>
       </NuxtLink>

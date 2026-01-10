@@ -7,11 +7,11 @@ const emit = defineEmits<{
   (e: 'upload-complete'): void
 }>()
 
+const settingsStore = useSettingsStore()
+
 const isDragging = ref(false)
-const isUploading = ref(false)
-const uploadProgress = ref(0)
 const fileInput = ref<HTMLInputElement | null>(null)
-const toast = useToast()
+const { uploadFiles, hasActiveUploads } = useBackgroundUpload()
 
 function onDragOver(e: DragEvent) {
   e.preventDefault()
@@ -45,58 +45,15 @@ function onFileSelect(e: Event) {
 }
 
 async function handleFiles(files: FileList) {
-  isUploading.value = true
-  uploadProgress.value = 0
+  // Use composable to handle uploads in background
+  await uploadFiles(files, props.currentFolderId)
   
-  const formData = new FormData()
+  // Emit complete event for parent component to refresh
+  emit('upload-complete')
   
-  if (props.currentFolderId) {
-    formData.append('folderId', props.currentFolderId)
-  }
-  
-  for (let i = 0; i < files.length; i++) {
-    formData.append('files', files[i])
-  }
-  
-  try {
-    // Simulate progress since fetch doesn't support it natively yet
-    const progressInterval = setInterval(() => {
-      if (uploadProgress.value < 90) {
-        uploadProgress.value += 10
-      }
-    }, 200)
-    
-    await $fetch('/api/files/upload', {
-      method: 'POST',
-      body: formData,
-    })
-    
-    clearInterval(progressInterval)
-    uploadProgress.value = 100
-    
-    toast.add({
-      title: 'Success',
-      description: `Uploaded ${files.length} file(s) successfully`,
-      color: 'success',
-    })
-    
-    emit('upload-complete')
-  } catch (error: any) {
-    toast.add({
-      title: 'Error',
-      description: error.data?.message || 'Failed to upload files',
-      color: 'error',
-    })
-  } finally {
-    setTimeout(() => {
-      isUploading.value = false
-      uploadProgress.value = 0
-    }, 1000)
-    
-    // Reset input
-    if (fileInput.value) {
-      fileInput.value.value = ''
-    }
+  // Reset input
+  if (fileInput.value) {
+    fileInput.value.value = ''
   }
 }
 </script>
@@ -106,7 +63,7 @@ async function handleFiles(files: FileList) {
     class="relative rounded-lg border-2 border-dashed transition-colors duration-200"
     :class="[
       isDragging ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/10' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600',
-      isUploading ? 'pointer-events-none opacity-70' : 'cursor-pointer'
+      'cursor-pointer'
     ]"
     @dragover="onDragOver"
     @dragleave="onDragLeave"
@@ -123,30 +80,17 @@ async function handleFiles(files: FileList) {
       >
       
       <UIcon
-        v-if="!isUploading"
         name="i-heroicons-cloud-arrow-up"
         class="w-10 h-10 text-gray-400 mb-3"
       />
-      <UIcon
-        v-else
-        name="i-heroicons-arrow-path"
-        class="w-10 h-10 text-primary-500 mb-3 animate-spin"
-      />
       
-      <div v-if="!isUploading">
+      <div>
         <p class="text-sm font-medium text-gray-900 dark:text-white">
           <span class="text-primary-500">Click to upload</span> or drag and drop
         </p>
         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          Any file up to 50MB
+          Any file up to {{ settingsStore.maxFileSizeMB }}MB
         </p>
-      </div>
-      
-      <div v-else class="w-full max-w-xs">
-        <p class="text-sm font-medium text-gray-900 dark:text-white mb-2">
-          Uploading files...
-        </p>
-        <UProgress :value="uploadProgress" color="primary" size="sm" />
       </div>
     </div>
   </div>

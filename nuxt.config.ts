@@ -12,12 +12,7 @@ export default defineNuxtConfig({
     compatibilityVersion: 4,
   },
 
-  modules: [
-    '@nuxt/ui',
-    '@nuxt/image',
-    '@pinia/nuxt',
-    '@vueuse/nuxt',
-  ],
+  modules: ['@nuxt/ui', '@nuxt/image', '@pinia/nuxt', '@vueuse/nuxt', '@nuxt/devtools'],
 
   css: ['~/assets/css/main.css'],
 
