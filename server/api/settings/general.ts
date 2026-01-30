@@ -63,6 +63,12 @@ export default defineEventHandler(async (event) => {
       'lockoutDurationMinutes',
       'allowedFileTypes',
       'blockedFileTypes',
+      // OnlyOffice
+      'onlyofficeEnabled',
+      'onlyofficeUrl',
+      'onlyofficeSecret',
+      'onlyofficeEditEnabled',
+      'onlyofficeCoEdit',
     ]
 
     // Filter only allowed fields

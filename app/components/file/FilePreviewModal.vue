@@ -10,6 +10,19 @@ const props = defineProps<{
 }>()
 
 const isOpen = defineModel<boolean>('open', { default: false })
+const settingsStore = useSettingsStore()
+
+// Debug: log OnlyOffice settings
+watchEffect(() => {
+  if (isOpen.value) {
+    console.log('[FilePreview] OnlyOffice settings:', {
+      enabled: settingsStore.onlyofficeEnabled,
+      url: settingsStore.onlyofficeUrl,
+      editEnabled: settingsStore.onlyofficeEditEnabled,
+      settingsLoaded: settingsStore.isLoaded,
+    })
+  }
+})
 
 // Preview state
 const isLoading = ref(true)
@@ -18,6 +31,17 @@ const previewContent = ref<string>('')
 const excelData = ref<any[][]>([])
 const currentSheet = ref(0)
 const sheetNames = ref<string[]>([])
+const showOnlyOffice = ref(false)
+
+// OnlyOffice supported file types
+const onlyOfficeExtensions = ['.doc', '.docx', '.odt', '.rtf', '.xls', '.xlsx', '.ods', '.csv', '.ppt', '.pptx', '.odp', '.pdf']
+
+// Check if file can be opened with OnlyOffice
+const canUseOnlyOffice = computed(() => {
+  if (!settingsStore.onlyofficeEnabled || !settingsStore.onlyofficeUrl) return false
+  const name = props.fileName?.toLowerCase() || ''
+  return onlyOfficeExtensions.some(ext => name.endsWith(ext))
+})
 
 // Determine preview type
 const previewType = computed(() => {
@@ -38,9 +62,20 @@ const previewType = computed(() => {
 // Can preview
 const canPreview = computed(() => previewType.value !== 'unsupported')
 
+// Open with OnlyOffice
+function openWithOnlyOffice() {
+  showOnlyOffice.value = true
+}
+
+// Close OnlyOffice and return to preview
+function closeOnlyOffice() {
+  showOnlyOffice.value = false
+}
+
 // Load preview when modal opens
 watch([isOpen, () => props.downloadUrl], async ([open, url]) => {
   if (open && url) {
+    showOnlyOffice.value = false
     await loadPreview()
   }
 }, { immediate: true })
@@ -126,6 +161,15 @@ function downloadFile() {
 </script>
 
 <template>
+  <!-- OnlyOffice Editor Modal -->
+  <FileOnlyOfficeEditor
+    v-if="showOnlyOffice && fileId"
+    v-model:open="showOnlyOffice"
+    :file-id="fileId"
+    :file-name="fileName"
+    @close="closeOnlyOffice"
+  />
+
   <UModal 
     v-model:open="isOpen" 
     :title="fileName || 'Preview'"
@@ -148,6 +192,16 @@ function downloadFile() {
             <span class="font-medium text-gray-900 dark:text-white">{{ fileName }}</span>
           </div>
           <div class="flex items-center gap-2">
+            <!-- OnlyOffice Button -->
+            <UButton
+              v-if="canUseOnlyOffice && fileId"
+              icon="i-heroicons-pencil-square"
+              color="primary"
+              variant="soft"
+              @click="openWithOnlyOffice"
+            >
+              {{ settingsStore.onlyofficeEditEnabled ? 'Edit with OnlyOffice' : 'Open with OnlyOffice' }}
+            </UButton>
             <UButton
               v-if="downloadUrl"
               icon="i-heroicons-arrow-down-tray"

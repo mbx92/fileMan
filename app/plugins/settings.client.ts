@@ -12,7 +12,8 @@ export default defineNuxtPlugin(async () => {
 
   // Watch for auth changes to reload settings
   watch(() => authStore.isAuthenticated, async (isAuthenticated) => {
-    if (isAuthenticated && !settingsStore.isLoaded) {
+    if (isAuthenticated) {
+      // Always reload settings when user logs in
       await settingsStore.fetchSettings()
     }
   })

@@ -17,6 +17,11 @@ interface SystemSettings {
   lockoutDurationMinutes: number
   allowedFileTypes: string
   blockedFileTypes: string
+  // OnlyOffice settings
+  onlyofficeEnabled?: boolean
+  onlyofficeUrl?: string
+  onlyofficeEditEnabled?: boolean
+  onlyofficeCoEdit?: boolean
 }
 
 // Helper function to convert hex to HSL
@@ -70,6 +75,10 @@ export const useSettingsStore = defineStore('settings', {
     maxFileSizeMB: (state) => state.settings?.maxFileSizeMB || 100,
     maxStorageGB: (state) => state.settings?.maxStorageGB || 10,
     allowPublicSharing: (state) => state.settings?.allowPublicSharing ?? true,
+    onlyofficeEnabled: (state) => state.settings?.onlyofficeEnabled ?? false,
+    onlyofficeUrl: (state) => state.settings?.onlyofficeUrl || '',
+    onlyofficeEditEnabled: (state) => state.settings?.onlyofficeEditEnabled ?? false,
+    onlyofficeCoEdit: (state) => state.settings?.onlyofficeCoEdit ?? false,
   },
 
   actions: {

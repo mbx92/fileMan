@@ -143,6 +143,15 @@ export const useAuthStore = defineStore('auth', {
       
       this.user = response.user as User
       this.isAuthenticated = true
+      
+      // Save to localStorage for persistence
+      if (import.meta.client && response.token) {
+        const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+        this.tokens = { accessToken: response.token, expiresAt }
+        localStorage.setItem('auth_user', JSON.stringify(response.user))
+        localStorage.setItem('auth_tokens', JSON.stringify(this.tokens))
+      }
+      
       return response
     },
 

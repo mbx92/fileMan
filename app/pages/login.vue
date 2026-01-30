@@ -25,6 +25,15 @@ const loginForm = reactive({
   password: '',
 })
 
+// Dev mode check
+const isDev = import.meta.dev
+
+// Fill dev credentials
+function fillDevCredentials() {
+  loginForm.email = 'superadmin@fileman.id'
+  loginForm.password = 'Admin123!'
+}
+
 const registerForm = reactive({
   email: '',
   username: '',
@@ -203,6 +212,23 @@ function toggleMode() {
             :disabled="isLoading"
           >
             Sign In
+          </UButton>
+
+          <!-- Dev Credentials Button (only in dev mode) -->
+          <UButton
+            v-if="isDev"
+            type="button"
+            block
+            size="lg"
+            variant="soft"
+            color="neutral"
+            class="mt-2"
+            @click="fillDevCredentials"
+          >
+            <template #leading>
+              <UIcon name="i-heroicons-code-bracket" class="w-5 h-5" />
+            </template>
+            Fill Dev Credentials
           </UButton>
         </form>
 

@@ -148,6 +148,13 @@ model SystemSettings {
   allowedFileTypes       String  @default("*") // Comma-separated or * for all
   blockedFileTypes       String  @default(".exe,.bat,.cmd,.sh,.ps1") // Dangerous files
 
+  // OnlyOffice Integration
+  onlyofficeEnabled     Boolean @default(false)
+  onlyofficeUrl         String  @default("")
+  onlyofficeSecret      String  @default("")
+  onlyofficeEditEnabled Boolean @default(false) // Allow editing documents
+  onlyofficeCoEdit      Boolean @default(false) // Allow collaborative editing
+
   updatedAt DateTime @updatedAt
 }
 

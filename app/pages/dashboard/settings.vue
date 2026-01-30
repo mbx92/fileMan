@@ -46,8 +46,20 @@ const userInfoTestLoading = ref(false)
 const userInfoTestResult = ref<any>(null)
 const minioTestLoading = ref(false)
 const minioTestResult = ref<any>(null)
+const onlyofficeTestLoading = ref(false)
+const onlyofficeTestResult = ref<any>(null)
+const onlyofficeSaving = ref(false)
 
 const authStore = useAuthStore()
+
+// OnlyOffice Configuration
+const onlyofficeConfig = ref({
+  enabled: false,
+  url: '',
+  secret: '',
+  editEnabled: false,
+  coEdit: false,
+})
 
 // Get MinIO config from server
 const { data: minioData } = await useFetch('/api/settings/minio')
@@ -130,6 +142,14 @@ async function loadGeneralSettings() {
         allowUserRegistration: data.allowUserRegistration ?? false,
         sessionTimeoutMinutes: data.sessionTimeoutMinutes || 60,
         primaryColor: data.primaryColor || '#3b82f6',
+      }
+      // Load OnlyOffice settings
+      onlyofficeConfig.value = {
+        enabled: data.onlyofficeEnabled ?? false,
+        url: data.onlyofficeUrl || '',
+        secret: data.onlyofficeSecret || '',
+        editEnabled: data.onlyofficeEditEnabled ?? false,
+        coEdit: data.onlyofficeCoEdit ?? false,
       }
     }
   } catch (error) {
@@ -349,6 +369,85 @@ async function testMinIOConnection() {
   }
 }
 
+// Test OnlyOffice Connection
+async function testOnlyOfficeConnection() {
+  if (!onlyofficeConfig.value.url) {
+    toast.add({
+      title: 'Error',
+      description: 'Please enter OnlyOffice URL first',
+      color: 'error',
+    })
+    return
+  }
+
+  onlyofficeTestLoading.value = true
+  onlyofficeTestResult.value = null
+  
+  try {
+    const response = await $fetch('/api/settings/test-onlyoffice', {
+      method: 'POST',
+      body: { url: onlyofficeConfig.value.url },
+    })
+    
+    onlyofficeTestResult.value = {
+      success: true,
+      message: 'OnlyOffice Document Server is reachable',
+      data: response,
+    }
+    
+    toast.add({
+      title: 'Success',
+      description: 'OnlyOffice connection successful',
+      color: 'success',
+    })
+  } catch (error: any) {
+    onlyofficeTestResult.value = {
+      success: false,
+      message: error.data?.message || error.message || 'Connection failed',
+      error: error,
+    }
+    
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'OnlyOffice connection failed',
+      color: 'error',
+    })
+  } finally {
+    onlyofficeTestLoading.value = false
+  }
+}
+
+// Save OnlyOffice settings
+async function saveOnlyOfficeSettings() {
+  try {
+    onlyofficeSaving.value = true
+    await $fetch('/api/settings/general', {
+      method: 'POST',
+      body: {
+        onlyofficeEnabled: onlyofficeConfig.value.enabled,
+        onlyofficeUrl: onlyofficeConfig.value.url,
+        onlyofficeSecret: onlyofficeConfig.value.secret,
+        onlyofficeEditEnabled: onlyofficeConfig.value.editEnabled,
+        onlyofficeCoEdit: onlyofficeConfig.value.coEdit,
+      },
+    })
+    
+    toast.add({
+      title: 'Saved',
+      description: 'OnlyOffice settings saved successfully',
+      color: 'success',
+    })
+  } catch (error: any) {
+    toast.add({
+      title: 'Error',
+      description: error.data?.message || 'Failed to save OnlyOffice settings',
+      color: 'error',
+    })
+  } finally {
+    onlyofficeSaving.value = false
+  }
+}
+
 function copyToClipboard(text: string) {
   navigator.clipboard.writeText(text)
   toast.add({
@@ -525,6 +624,140 @@ function copyToClipboard(text: string) {
                       {{ minioTestResult.message }}
                     </p>
                     <pre v-if="minioTestResult.data" class="mt-2 text-xs overflow-auto">{{ JSON.stringify(minioTestResult.data, null, 2) }}</pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </UCard>
+
+          <!-- OnlyOffice Integration -->
+          <UCard>
+            <template #header>
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                    <UIcon name="i-heroicons-document-text" class="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">OnlyOffice Document Server</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">View and edit documents in browser</p>
+                  </div>
+                </div>
+                <UBadge :color="onlyofficeConfig.enabled ? 'success' : 'neutral'" variant="subtle">
+                  {{ onlyofficeConfig.enabled ? 'Enabled' : 'Disabled' }}
+                </UBadge>
+              </div>
+            </template>
+
+            <div class="space-y-4">
+              <!-- Enable Toggle -->
+              <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div>
+                  <p class="font-medium text-gray-900 dark:text-white">Enable OnlyOffice</p>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">Allow viewing and editing documents with OnlyOffice</p>
+                </div>
+                <USwitch v-model="onlyofficeConfig.enabled" />
+              </div>
+
+              <!-- Config Fields -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="md:col-span-2">
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Document Server URL</label>
+                  <div class="mt-1">
+                    <UInput 
+                      v-model="onlyofficeConfig.url" 
+                      placeholder="http://192.168.10.24:88"
+                      :disabled="!onlyofficeConfig.enabled"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">The URL of your OnlyOffice Document Server</p>
+                </div>
+                <div class="md:col-span-2">
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">JWT Secret (Optional)</label>
+                  <div class="mt-1">
+                    <UInput 
+                      v-model="onlyofficeConfig.secret" 
+                      type="password"
+                      placeholder="Leave empty if not configured"
+                      :disabled="!onlyofficeConfig.enabled"
+                    />
+                  </div>
+                  <p class="text-xs text-gray-500 mt-1">JWT secret for secure communication (if configured in OnlyOffice)</p>
+                </div>
+              </div>
+
+              <!-- Feature Toggles -->
+              <div class="space-y-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <p class="text-sm font-medium text-gray-700 dark:text-gray-300">Document Features</p>
+                
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white text-sm">Allow Editing</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Users can edit Word, Excel, PowerPoint documents</p>
+                  </div>
+                  <USwitch v-model="onlyofficeConfig.editEnabled" :disabled="!onlyofficeConfig.enabled" />
+                </div>
+
+                <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div>
+                    <p class="font-medium text-gray-900 dark:text-white text-sm">Collaborative Editing</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">Multiple users can edit the same document simultaneously</p>
+                  </div>
+                  <USwitch v-model="onlyofficeConfig.coEdit" :disabled="!onlyofficeConfig.enabled || !onlyofficeConfig.editEnabled" />
+                </div>
+              </div>
+
+              <!-- Supported Formats Info -->
+              <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div class="flex gap-3">
+                  <UIcon name="i-heroicons-information-circle" class="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                  <div class="text-sm text-blue-900 dark:text-blue-100">
+                    <p class="font-medium mb-2">Supported Formats:</p>
+                    <div class="grid grid-cols-2 gap-2 text-blue-800 dark:text-blue-200">
+                      <div><strong>Word:</strong> .doc, .docx, .odt, .rtf</div>
+                      <div><strong>Excel:</strong> .xls, .xlsx, .ods, .csv</div>
+                      <div><strong>PowerPoint:</strong> .ppt, .pptx, .odp</div>
+                      <div><strong>PDF:</strong> .pdf (view only)</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <UButton 
+                  color="primary" 
+                  variant="outline" 
+                  :loading="onlyofficeTestLoading" 
+                  :disabled="!onlyofficeConfig.url"
+                  @click="testOnlyOfficeConnection"
+                >
+                  <template #leading>
+                    <UIcon name="i-heroicons-signal" />
+                  </template>
+                  Test Connection
+                </UButton>
+                <UButton 
+                  color="primary" 
+                  :loading="onlyofficeSaving"
+                  @click="saveOnlyOfficeSettings"
+                >
+                  <template #leading>
+                    <UIcon name="i-heroicons-check" />
+                  </template>
+                  Save Settings
+                </UButton>
+              </div>
+
+              <!-- Test Results -->
+              <div v-if="onlyofficeTestResult" class="mt-4 p-4 rounded-lg" :class="onlyofficeTestResult.success ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'">
+                <div class="flex items-start gap-3">
+                  <UIcon :name="onlyofficeTestResult.success ? 'i-heroicons-check-circle' : 'i-heroicons-x-circle'" class="w-5 h-5 mt-0.5" :class="onlyofficeTestResult.success ? 'text-green-600' : 'text-red-600'" />
+                  <div class="flex-1">
+                    <p class="font-medium" :class="onlyofficeTestResult.success ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'">
+                      {{ onlyofficeTestResult.message }}
+                    </p>
+                    <pre v-if="onlyofficeTestResult.data" class="mt-2 text-xs overflow-auto">{{ JSON.stringify(onlyofficeTestResult.data, null, 2) }}</pre>
                   </div>
                 </div>
               </div>

@@ -37,6 +37,11 @@ export default defineNuxtConfig({
       bucketName: process.env.MINIO_BUCKET_NAME || 'fileman',
       useSSL: process.env.MINIO_USE_SSL === 'true',
     },
+    onlyoffice: {
+      secret: process.env.ONLYOFFICE_SECRET || '',
+    },
+    // Public URL for external services access (e.g., OnlyOffice)
+    publicUrl: process.env.PUBLIC_URL || '',
     // Public config (available client-side)
     public: {
       appName: 'FileMan',
@@ -45,6 +50,9 @@ export default defineNuxtConfig({
         clientId: process.env.SSO_CLIENT_ID || '',
         redirectUri: process.env.SSO_REDIRECT_URI || 'http://localhost:3003/auth/callback',
         scopes: ['openid', 'profile', 'email'],
+      },
+      onlyoffice: {
+        url: process.env.ONLYOFFICE_URL || '',
       },
     }
   },

@@ -96,6 +96,17 @@ export async function uploadFile(
 }
 
 /**
+ * Upload a buffer to MinIO (alias for uploadFile, used by OnlyOffice callback)
+ */
+export async function uploadBuffer(
+  buffer: Buffer,
+  objectKey: string,
+  mimeType: string
+): Promise<void> {
+  return uploadFile(objectKey, buffer, mimeType)
+}
+
+/**
  * Create an empty folder in MinIO
  */
 export async function createFolder(folderKey: string): Promise<void> {
